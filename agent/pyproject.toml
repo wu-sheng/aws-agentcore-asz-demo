@@ -1,0 +1,33 @@
+[project]
+name = "langgraph-agentcore-asz-agent"
+version = "0.1.0"
+description = "A LangGraph agent packaged for Amazon Bedrock AgentCore Runtime, observed by asz."
+requires-python = ">=3.10"
+dependencies = [
+    # agent logic
+    "langgraph>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    # tracing client (bundled with langchain-core, pinned here explicitly)
+    "langsmith>=0.1.0",
+    # AgentCore packaging + deploy
+    "bedrock-agentcore>=0.1.0",
+    # model provider — swap as needed; langchain-aws for Bedrock models
+    "langchain-aws>=0.2.0",
+]
+
+[project.optional-dependencies]
+# installed on the dev machine, not in the container image
+deploy = [
+    "bedrock-agentcore-starter-toolkit>=0.1.0",
+]
+dev = [
+    "ruff>=0.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
