@@ -60,7 +60,7 @@ Two distinct planes — do not conflate them:
 | | Where | Lifecycle | Registry |
 |---|---|---|---|
 | **LangGraph agent** | AgentCore Runtime microVM | ephemeral, per session | **ECR (required)** — AgentCore pulls from ECR |
-| **asz collector** | ECS/Fargate (this repo) or EC2 | persistent, shared, durable `/asz/data` | official multi-arch image; ECR optional |
+| **asz collector** | ECS/Fargate (this repo) | persistent, shared, durable `/asz/data` on EFS | `ghcr.io/apache/skywalking-ai-sessionizer`, no ECR needed |
 
 asz is **not** a sidecar. AgentCore Runtime runs one image per agent in ephemeral
 microVMs — there is no sidecar slot. asz is a long-lived collector with durable
@@ -74,7 +74,7 @@ network.
 Both modes **ingest identically** (LangSmith wire + plugin). They differ only in
 where asz stores/exports:
 
-- **Simple** — asz standalone: local `/asz/data`, built-in UI on `:8787`.
+- **Simple** — asz standalone: local `/asz/data`, built-in UI on `:8787`, LangSmith receiver on `:1985`.
 - **Scale** — asz additionally exports via `export.otlp.endpoint` to SkyWalking
   OAP + BanyanDB. The scale mode adds a downstream sink; it does not change
   collection.
@@ -86,25 +86,43 @@ where asz stores/exports:
 ```
 .
 ├── agent/                   # the LangGraph agent, packaged for AgentCore
-│   ├── app.py               # graph + AgentCore /invocations + /ping handler
-│   ├── Dockerfile           # ARM64 image for AgentCore Runtime
-│   ├── pyproject.toml       # langgraph, langchain, bedrock-agentcore, langsmith
-│   └── .env.example         # the 4 langsmith env vars + thread-id convention
-├── infra/
-│   └── terraform/           # OpenTofu/Terraform: ECS(asz) + ECR + ALB + EFS + VPC
-│       ├── main.tf
-│       ├── variables.tf     # ALL deploy params live here
-│       ├── outputs.tf
-│       ├── versions.tf
-│       └── terraform.tfvars.example
+│   ├── app.py               # tool-calling "deployment advisor" graph + /invocations + /ping
+│   ├── Dockerfile           # linux/arm64 image for AgentCore Runtime
+│   ├── requirements.txt     # what the image installs
+│   ├── pyproject.toml       # local dev install (bootstrap.sh)
+│   └── .env.example         # the 4 LANGSMITH_* env vars for Tier 1
+├── config/
+│   └── asz-local.yaml       # Tier-1 asz config: langsmith-ingest receiver on :1985
+├── infra/terraform/         # OpenTofu: the WHOLE Tier-2 environment, agent included
+│   ├── main.tf              # VPC, ECR, asz on ECS/Fargate + EFS + 2 ALBs, AgentCore runtime
+│   ├── variables.tf         # ALL deploy params live here
+│   ├── outputs.tf
+│   ├── versions.tf
+│   └── terraform.tfvars.example
 ├── scripts/
 │   ├── bootstrap.sh         # check local toolchain + create venv
-│   ├── build-push-agent.sh  # build ARM64 agent image + push to ECR
-│   ├── deploy-agent.sh      # AgentCore configure/launch wrapper (verify commands)
-│   └── run-asz-local.sh     # Tier-1: run asz on 127.0.0.1:8787 via docker
+│   ├── run-asz-local.sh     # Tier 1: asz in docker (UI :8787, ingest :1985)
+│   ├── up.sh                # Tier 2: ECR -> push arm64 image -> apply everything
+│   ├── invoke.sh            # Tier 2: play the demo conversation on AgentCore
+│   └── down.sh              # Tier 2: destroy everything, then verify nothing is left
 └── docs/
-    └── SETUP.md             # full prerequisites + Tier-1 / Tier-2 walkthrough
+    └── SETUP.md             # prerequisites + Tier-1 / Tier-2 walkthrough
 ```
+
+---
+
+## The demo conversation
+
+The agent is a small LangGraph "deployment advisor" with three tools
+(`search_docs`, `check_deployment`, `estimate_cost`). The demo plays the
+conversation a developer actually has while setting this up: can asz be a
+sidecar, why nothing landed on port 8787, whether OTLP is enough for replay, and
+what the PoC costs and how to tear it down. Each turn makes real tool calls, and
+all four turns are one thread, so asz shows one conversation with four rounds,
+LLM calls and tool calls.
+
+With no `BEDROCK_MODEL_ID` a scripted stand-in model makes the same tool calls,
+so Tier 1 needs no credential. Set it to use a real Bedrock model.
 
 ---
 
@@ -112,41 +130,36 @@ where asz stores/exports:
 
 ### Tier 1 — local observability validation (zero AWS)
 
-Proves the data path: LangGraph → langsmith → asz. No cloud, no Bedrock.
-
 ```bash
 ./scripts/bootstrap.sh            # venv + deps + toolchain check
-./scripts/run-asz-local.sh        # asz on 127.0.0.1:8787
-cp agent/.env.example agent/.env  # points langsmith at localhost asz
-cd agent && python app.py --local # invoke the graph once
-# open http://127.0.0.1:8787 → the conversation should be there
+./scripts/run-asz-local.sh        # asz: UI 127.0.0.1:8787, ingest 127.0.0.1:1985
+cd agent && set -a && . ./.env.example && set +a
+.venv/bin/python app.py --local --demo --thread-id advisor-demo-001
+# within ~10s: http://127.0.0.1:8787 shows ls-aws-agentcore-asz-demo-advisor-demo-001-...
 ```
 
-### Tier 2 — real AWS PoC
+### Tier 2 — real AWS
 
 ```bash
-cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # fill in region, account, etc.
-tofu init && tofu apply                         # ECS asz + ECR + ALB + EFS
-../../scripts/build-push-agent.sh               # agent image → ECR
-../../scripts/deploy-agent.sh                   # register on AgentCore Runtime
-# invoke the deployed agent; the conversation lands in the remote asz UI
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars   # set asz_ui_cidrs
+./scripts/up.sh       # ~10 min; everything is created by OpenTofu
+./scripts/invoke.sh   # the demo conversation, on AgentCore, lands in the remote asz
+./scripts/down.sh     # destroy everything and verify nothing is left
 ```
 
-See [`docs/SETUP.md`](docs/SETUP.md) for the full prerequisite list and the
-AgentCore egress / networking notes.
+See [`docs/SETUP.md`](docs/SETUP.md) for prerequisites, what gets created, and costs.
 
 ---
 
 ## Status / caveats
 
-- The AgentCore starter-toolkit command surface (`agentcore configure` /
-  `agentcore launch`) and the microVM→asz egress model are **unverified against
-  live docs** here — the AgentCore docs are JS-rendered. `scripts/deploy-agent.sh`
-  is a thin wrapper to finalize once the current commands are confirmed. The
-  *shape* (SDK wraps handler → ARM64 image → ECR → Runtime) is stable.
-- `terraform.tfvars`, state files, and `.env` are git-ignored — never commit real
-  account values or endpoints.
+- Tier 1 is verified end to end (asz 0.5.0, LangGraph 1.x, the arm64 agent image
+  served over `/invocations` with an AgentCore session header).
+- Tier 2 passes `tofu validate` (AWS provider 6.x) but has not been applied in a
+  real account yet.
+- The receiver token is passed to the asz task as a plain task-definition
+  environment value. Fine for a throwaway PoC; use Secrets Manager otherwise.
+- `terraform.tfvars`, state files, `.deploy/` and `.env` are git-ignored.
 
 ## License
 

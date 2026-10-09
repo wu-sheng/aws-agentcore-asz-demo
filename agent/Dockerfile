@@ -1,22 +1,21 @@
-# AgentCore Runtime requires an ARM64 (linux/arm64) image pushed to ECR.
-# Build with:  docker buildx build --platform linux/arm64 -t <ecr-uri>:<tag> --push .
-FROM --platform=linux/arm64 python:3.12-slim
+# AgentCore Runtime requires a linux/arm64 image in ECR. scripts/up.sh builds
+# and pushes it:  docker buildx build --platform linux/arm64 -t <ecr-uri>:<tag> --push .
+FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1
+
 # Install deps first for layer caching.
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-    "langgraph>=0.2.0" \
-    "langchain>=0.3.0" \
-    "langchain-core>=0.3.0" \
-    "langsmith>=0.1.0" \
-    "bedrock-agentcore>=0.1.0" \
-    "langchain-aws>=0.2.0"
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py ./
 
-# AgentCore invokes the container over HTTP (/invocations + /ping).
-# The SDK's app.run() binds the server; --serve wires that up.
+RUN useradd -m -u 1000 agent
+USER agent
+
+# AgentCore invokes the container over HTTP (/invocations + /ping) on 8080.
+# With no flag, app.py serves.
 EXPOSE 8080
-CMD ["python", "app.py", "--serve"]
+CMD ["python", "app.py"]
