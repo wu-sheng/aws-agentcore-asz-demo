@@ -20,3 +20,6 @@ __pycache__/
 # os / editor
 .DS_Store
 *.swp
+
+# scripts/up.sh resource manifest (account-specific)
+.deploy/

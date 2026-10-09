@@ -1,0 +1,21 @@
+# asz configuration for the Tier-1 local run (and the container image in general).
+#
+# Mounted at /asz/asz.yaml, which the official image reads on start.
+# Listing `adapters` replaces asz's default list, so only the LangSmith
+# receiver runs here; nothing on the host (e.g. ~/.claude) is collected.
+storage:
+  root: /asz/data
+
+adapters:
+  - name: langsmith-ingest
+    enabled: true
+    # Inside the container, bind all interfaces; the host side of the port
+    # mapping (run-asz-local.sh) keeps it on 127.0.0.1 only.
+    listen: 0.0.0.0:1985
+    # Empty accepts any LANGSMITH_API_KEY. Set a shared secret whenever the
+    # receiver is reachable from another machine (Tier-2).
+    token: ""
+    collector:
+      mode: watch
+      # Short interval so a demo run shows up in the UI within seconds.
+      interval: 10s

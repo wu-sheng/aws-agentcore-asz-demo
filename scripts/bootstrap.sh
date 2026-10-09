@@ -40,5 +40,5 @@ echo "  venv ready at agent/.venv (activate: source agent/.venv/bin/activate)"
 
 echo
 echo "Next:"
-echo "  Tier-1:  ./scripts/run-asz-local.sh   then  (cd agent && python app.py --local)"
-echo "  Tier-2:  cd infra/terraform && cp terraform.tfvars.example terraform.tfvars && tofu init && tofu apply"
+echo "  Tier-1:  ./scripts/run-asz-local.sh   then  (cd agent && set -a && . ./.env.example && set +a && .venv/bin/python app.py --local --demo)"
+echo "  Tier-2:  cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars && ./scripts/up.sh"

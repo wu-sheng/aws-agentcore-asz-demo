@@ -1,0 +1,7 @@
+# Runtime dependencies of the agent container. The AgentCore starter toolkit
+# installs this file when it builds the image (agentcore configure -rf).
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langsmith>=0.1.0
+bedrock-agentcore>=1.0.0
+langchain-aws>=0.2.0
