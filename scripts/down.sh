@@ -34,16 +34,16 @@ fi
 
 echo "== 1/3 tofu destroy =="
 # AgentCore and Fargate release their ENIs asynchronously; a subnet or
-# security group can refuse deletion for a few minutes. Retry.
+# security group can refuse deletion for a while (up to ~20 min). Retry.
 attempt=1
 until tofu destroy -input=false -auto-approve -var "agent_image_tag=unused"; do
-  if [ "$attempt" -ge 4 ]; then
+  if [ "$attempt" -ge 10 ]; then
     echo "tofu destroy still failing after $attempt attempts; re-run ./scripts/down.sh --yes" >&2
     exit 1
   fi
   attempt=$((attempt + 1))
-  echo "  retrying in 90s (attempt $attempt/4) ..."
-  sleep 90
+  echo "  retrying in 120s (attempt $attempt/10) ..."
+  sleep 120
 done
 
 echo "== 2/3 AgentCore runtime log groups =="
@@ -85,6 +85,16 @@ if [ -n "$runtimes" ]; then
   left=1
 else
   echo "  AgentCore runtimes of ours: none"
+fi
+
+# IAM is global and the regional tagging index may not list roles; check by name.
+prefix="$(printf '%s' "$PROJECT" | cut -c1-20)-"
+roles="$(aws iam list-roles --query "Roles[?starts_with(RoleName, '$prefix')].RoleName" --output text)"
+if [ -n "$roles" ]; then
+  echo "  IAM roles still present: $roles"
+  left=1
+else
+  echo "  IAM roles $prefix*: none"
 fi
 
 echo "  note: the AgentCore network service-linked role (AWSServiceRoleForBedrockAgentCoreNetwork),"
