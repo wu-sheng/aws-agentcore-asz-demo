@@ -10,8 +10,9 @@ project_name = "aws-agentcore-asz-demo"
 asz_ui_cidrs = ["203.0.113.7/32"]
 
 # Real inference. Leave empty for the scripted stand-in model (no Bedrock cost).
-# The model must be enabled for the account in the Bedrock console.
-bedrock_model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+# Anthropic models first need the one-time Anthropic use-case form (Bedrock
+# console, Model access); until it is submitted, every turn returns 500.
+bedrock_model_id = "us.anthropic.claude-opus-4-7"
 
 # Only if apply fails on the agent runtime's subnets: pin AZs AgentCore supports.
 # availability_zone_ids = ["use1-az1", "use1-az2"]
