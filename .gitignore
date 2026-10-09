@@ -1,0 +1,22 @@
+# secrets / deploy-specific values — never commit
+agent/.env
+infra/terraform/terraform.tfvars
+*.auto.tfvars
+
+# terraform / opentofu state
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+
+# python
+agent/.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.ruff_cache/
+
+# os / editor
+.DS_Store
+*.swp
