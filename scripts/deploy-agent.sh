@@ -20,7 +20,7 @@ cd "$ROOT/agent"
 export LANGCHAIN_TRACING_V2="true"
 export LANGCHAIN_ENDPOINT="$ASZ_ENDPOINT"
 export LANGCHAIN_API_KEY="${LANGCHAIN_API_KEY:-asz-prod}"
-export LANGCHAIN_PROJECT="${LANGCHAIN_PROJECT:-langgraph-agentcore-asz-demo}"
+export LANGCHAIN_PROJECT="${LANGCHAIN_PROJECT:-aws-agentcore-asz-demo}"
 
 echo "Deploying agent to AgentCore Runtime in $AWS_REGION"
 echo "  asz endpoint (traces -> here): $ASZ_ENDPOINT"

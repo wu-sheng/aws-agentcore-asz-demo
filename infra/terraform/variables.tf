@@ -18,7 +18,7 @@ variable "aws_profile" {
 variable "project_name" {
   description = "Prefix for all resource names/tags."
   type        = string
-  default     = "langgraph-agentcore-asz-demo"
+  default     = "aws-agentcore-asz-demo"
 }
 
 # --- asz collector image ----------------------------------------------------
