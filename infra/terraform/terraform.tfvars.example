@@ -3,7 +3,7 @@
 
 aws_region  = "us-east-1"      # must support Bedrock AgentCore
 aws_profile = "default"        # your local AWS CLI profile
-project_name = "langgraph-agentcore-asz-demo"
+project_name = "aws-agentcore-asz-demo"
 
 # asz collector image (confirm the real published coordinates)
 asz_image = "apache/skywalking-ai-sessionizer:latest"

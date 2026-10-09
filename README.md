@@ -1,4 +1,4 @@
-# langgraph-agentcore-asz-demo
+# aws-agentcore-asz-demo
 
 Run a **LangGraph** agent on **Amazon Bedrock AgentCore Runtime**, and observe it
 end-to-end with **[Apache SkyWalking AI Sessionizer (asz)](https://github.com/apache/skywalking-ai-sessionizer)** —
