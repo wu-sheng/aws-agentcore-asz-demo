@@ -124,6 +124,10 @@ This deletes asz's stored conversations (EFS) and the agent images (ECR).
 
 - **apply fails on the runtime's subnets**: AgentCore VPC mode supports only some
   AZs per region. Set `availability_zone_ids` to supported AZ ids and re-run `up.sh`.
+- **invoke returns 500 on every turn**: with an Anthropic model, the account has
+  not submitted the Anthropic use-case form (Bedrock console, Model access).
+  Submit it and wait ~15 min. A direct `aws bedrock-runtime converse --model-id <id> ...`
+  says so plainly.
 - **conversation never appears**: `aws logs tail /ecs/<project>-asz --follow`
   shows asz; the agent's logs are under `/aws/bedrock-agentcore/runtimes/`.
 - **UI unreachable**: `asz_ui_cidrs` must include your current public IP.
