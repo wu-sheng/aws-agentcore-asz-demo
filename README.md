@@ -153,8 +153,11 @@ See [`docs/SETUP.md`](docs/SETUP.md) for prerequisites, what gets created, and c
 
 ## Status / caveats
 
-- Tier 1 is verified end to end (asz 0.5.0, LangGraph 1.x, the arm64 agent image
+- Tier 1 is verified end to end (asz at commit `8104ada`, LangGraph 1.x, the arm64 agent image
   served over `/invocations` with an AgentCore session header).
+- asz is pinned to commit `8104ada` (UI fixes in apache/skywalking-ai-sessionizer#59),
+  because `:latest` on GHCR still points at the 0.5.0 release. Move the pin to the
+  next release tag once it ships, in `scripts/run-asz-local.sh` and `var.asz_image`.
 - Tier 2 passes `tofu validate` (AWS provider 6.x) but has not been applied in a
   real account yet.
 - The receiver token is passed to the asz task as a plain task-definition

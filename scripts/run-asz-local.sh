@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ASZ_IMAGE="${ASZ_IMAGE:-ghcr.io/apache/skywalking-ai-sessionizer:latest}"
+ASZ_IMAGE="${ASZ_IMAGE:-ghcr.io/apache/skywalking-ai-sessionizer:8104ada77cbd0d5ca69754d50cbbc0cd6f9bbec5}"
 ASZ_UI_PORT="${ASZ_UI_PORT:-8787}"
 ASZ_INGEST_PORT="${ASZ_INGEST_PORT:-1985}"
 CONTAINER="${CONTAINER:-asz-local}"
