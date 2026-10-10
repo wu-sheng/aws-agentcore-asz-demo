@@ -12,6 +12,11 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
   `write_file` on a clone of this repo), `InMemorySaver`, and the AgentCore entrypoint. With no
   `BEDROCK_MODEL_ID` it runs a scripted stand-in model, so Tier 1 needs no credentials.
   `DEMO_TURNS` is the five-question demo; `scripts/invoke.sh` repeats the same five (keep them equal).
+- `.github/workflows/agent-image.yml` — the only place the agent image is built for deployment and
+  pushed: `linux/arm64` on GitHub's arm runner, to `ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent`
+  (`:<commit>`, and `:main` from main). Never push images from a local machine. `up.sh` copies the
+  GHCR image into ECR (AgentCore runs images only from ECR) and refuses one whose
+  `io.github.wu-sheng.asz-commit` label differs from `var.asz_image`'s commit.
 - `agent/Dockerfile` — `linux/arm64` image (AgentCore requires arm64, pulled from ECR). A Go stage
   builds `asz-changes` from asz source at `ASZ_COMMIT`; the image also installs the LangChain shim
   from the same commit (`asz-langchain enable`) and `git`.
@@ -41,7 +46,8 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
   The collector interval is set to 30s (Tier 2) / 10s (Tier 1); asz's default is 10 minutes.
 - asz is pinned by **upstream commit id**, not a release tag, in places that must agree:
   `scripts/run-asz-local.sh` (`ASZ_IMAGE`), `var.asz_image`, and the `ASZ_COMMIT` default in
-  `agent/Dockerfile` (`up.sh` and `run-agent-local.sh` pass the pinned commit as a build arg).
+  `agent/Dockerfile` (the workflow and `run-agent-local.sh` pass the pinned commit as a build
+  arg; the workflow fails if `run-asz-local.sh` and `var.asz_image` disagree).
   `:latest` is the last release and lags `main`. Skill: `bump-asz`.
 - File changes reach asz only through a shared directory: on AWS an EFS access point
   (`aws_efs_access_point.changes`, uid 65532) that the runtime mounts at `/mnt/changes` and asz

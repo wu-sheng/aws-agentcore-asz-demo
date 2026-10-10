@@ -6,7 +6,10 @@
 #   ./scripts/run-agent-local.sh -q "question"      one turn
 #   THREAD=<id> ./scripts/run-agent-local.sh -q ..  continue a thread
 #
-# It runs the same image up.sh pushes to ECR, built for this machine. With no
+# By default it builds the image from this checkout, for this machine: it is
+# for testing changes. AGENT_IMAGE=<image> runs a published image instead,
+# e.g. AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent:main, the one
+# up.sh deploys; SKIP_BUILD=1 reuses the last local build. With no
 # BEDROCK_MODEL_ID the agent uses its scripted stand-in model. To use a real
 # model, export BEDROCK_MODEL_ID and credentials the container can read
 # (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN, e.g. from
@@ -25,8 +28,11 @@ ASZ_COMMIT="$(sed -n 's/^ASZ_IMAGE=.*skywalking-ai-sessionizer:\([0-9a-f]\{40\}\
 
 docker inspect asz-local >/dev/null 2>&1 || { echo "asz-local is not running: ./scripts/run-asz-local.sh first" >&2; exit 1; }
 
-if [ "${SKIP_BUILD:-}" != 1 ]; then
-  echo "Building $IMAGE (asz-changes and the shim from asz ${ASZ_COMMIT:0:7}) ..."
+if [ -n "${AGENT_IMAGE:-}" ]; then
+  echo "Pulling $IMAGE ..."
+  docker pull -q "$IMAGE" >/dev/null
+elif [ "${SKIP_BUILD:-}" != 1 ]; then
+  echo "Building $IMAGE from this checkout (asz-changes and the shim from asz ${ASZ_COMMIT:0:7}) ..."
   docker buildx build --build-arg "ASZ_COMMIT=$ASZ_COMMIT" -t "$IMAGE" --load "$ROOT/agent" >/dev/null
 fi
 

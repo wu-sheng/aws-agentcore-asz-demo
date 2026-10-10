@@ -2,7 +2,11 @@
 # Tier-2: stand up the whole environment on AWS.
 #
 #   1. create the agent's ECR repo (the only thing the image push needs first)
-#   2. build the linux/arm64 agent image and push it
+#   2. put the agent image there: the one GitHub Actions builds and publishes
+#      to GHCR (.github/workflows/agent-image.yml), copied as is, because
+#      AgentCore runs images only from ECR. Images are built and published
+#      only by that workflow; AGENT_IMAGE picks another of its tags (e.g. a
+#      commit id). Nothing is built here.
 #   3. apply everything else: VPC, asz on ECS/Fargate + EFS + load balancers,
 #      and the agent on AgentCore Runtime pointing at asz
 #   4. write .deploy/resources.txt: what now exists, for scripts/down.sh
@@ -51,23 +55,37 @@ if [ -n "$MODEL" ]; then
   echo "  answers"
 fi
 
-echo "== 1/4 ECR repository =="
-tofu apply -input=false -auto-approve -target=aws_ecr_repository.agent >/dev/null
-REPO="$(tofu output -raw agent_ecr_repository_url)"
-echo "  $REPO"
-
-echo "== 2/4 agent image (linux/arm64) =="
-TAG="${IMAGE_TAG:-$(date -u +%Y%m%d-%H%M%S)}"
-# The image builds asz-changes and the LangChain shim from the commit the asz
-# image is pinned to, so a recorded change lands under the conversation asz names.
+echo "== agent image =="
+# The image carries asz-changes and the LangChain shim built from an asz
+# commit; it must be the one the asz image is pinned to, so a recorded change
+# lands under the conversation asz names.
 ASZ_IMAGE="$(tofu console <<<'var.asz_image' | tr -d '"')"
 ASZ_COMMIT="${ASZ_IMAGE##*:}"
 [[ "$ASZ_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
   echo "var.asz_image must end in a full asz commit id (got '$ASZ_COMMIT'); see the bump-asz skill" >&2
   exit 1
 }
+AGENT_IMAGE="${AGENT_IMAGE:-ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent:main}"
+echo "  pulling $AGENT_IMAGE (published by GitHub Actions)"
+docker pull -q --platform linux/arm64 "$AGENT_IMAGE" >/dev/null
+built_with="$(docker image inspect --format '{{ index .Config.Labels "io.github.wu-sheng.asz-commit" }}' "$AGENT_IMAGE")"
+if [ "$built_with" != "$ASZ_COMMIT" ]; then
+  echo "  $AGENT_IMAGE carries asz-changes from asz ${built_with:-<unknown>}, but var.asz_image pins" >&2
+  echo "  $ASZ_COMMIT: recorded file changes would not join their conversation. Wait for the" >&2
+  echo "  agent-image workflow on main to publish the image for the pinned commit." >&2
+  exit 1
+fi
+
+echo "== 1/4 ECR repository =="
+tofu apply -input=false -auto-approve -target=aws_ecr_repository.agent >/dev/null
+REPO="$(tofu output -raw agent_ecr_repository_url)"
+echo "  $REPO"
+
+echo "== 2/4 agent image, copied into ECR =="
+TAG="${IMAGE_TAG:-$(date -u +%Y%m%d-%H%M%S)}"
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPO%%/*}" >/dev/null
-docker buildx build --platform linux/arm64 --build-arg "ASZ_COMMIT=$ASZ_COMMIT" -t "$REPO:$TAG" --push "$ROOT/agent"
+docker tag "$AGENT_IMAGE" "$REPO:$TAG"
+docker push -q "$REPO:$TAG" >/dev/null
 echo "  pushed $REPO:$TAG"
 
 echo "== 3/4 environment (takes ~10 min: NAT, EFS, load balancers, AgentCore) =="
@@ -79,7 +97,7 @@ mkdir -p "$DEPLOY"
   echo "# Written by scripts/up.sh at $(date -u +%FT%TZ). Removed by scripts/down.sh."
   echo "region=$REGION"
   echo "project_tag=$(tofu output -raw project_tag)"
-  echo "agent_image=$REPO:$TAG"
+  echo "agent_image=$REPO:$TAG  (copied from $AGENT_IMAGE)"
   echo "model=${MODEL:-scripted stand-in}"
   echo "agent_runtime_id=$(tofu output -raw agent_runtime_id)"
   echo "agent_runtime_arn=$(tofu output -raw agent_runtime_arn)"

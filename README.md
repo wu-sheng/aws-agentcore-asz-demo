@@ -86,6 +86,8 @@ where asz stores/exports:
 
 ```
 .
+├── .github/workflows/
+│   └── agent-image.yml      # builds the agent image (linux/arm64) and publishes it to GHCR
 ├── agent/                   # the LangGraph agent, packaged for AgentCore
 │   ├── app.py               # tool-calling "deployment advisor" graph + /invocations + /ping
 │   ├── Dockerfile           # linux/arm64 image for AgentCore Runtime
@@ -105,7 +107,7 @@ where asz stores/exports:
 │   ├── bootstrap.sh         # check local toolchain + create venv
 │   ├── run-asz-local.sh     # Tier 1: asz in docker (UI :8787, ingest :1985)
 │   ├── run-agent-local.sh   # Tier 1: the agent's image, with file-change recording
-│   ├── up.sh                # Tier 2: ECR -> push arm64 image -> apply everything
+│   ├── up.sh                # Tier 2: ECR -> copy the GHCR image in -> apply everything
 │   ├── invoke.sh            # Tier 2: play the demo conversation on AgentCore
 │   └── down.sh              # Tier 2: destroy everything; `down.sh check` shows progress
 └── docs/
