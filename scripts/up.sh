@@ -38,8 +38,16 @@ echo "  $REPO"
 
 echo "== 2/4 agent image (linux/arm64) =="
 TAG="${IMAGE_TAG:-$(date -u +%Y%m%d-%H%M%S)}"
+# The image builds asz-changes and the LangChain shim from the commit the asz
+# image is pinned to, so a recorded change lands under the conversation asz names.
+ASZ_IMAGE="$(tofu console <<<'var.asz_image' | tr -d '"')"
+ASZ_COMMIT="${ASZ_IMAGE##*:}"
+[[ "$ASZ_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "var.asz_image must end in a full asz commit id (got '$ASZ_COMMIT'); see the bump-asz skill" >&2
+  exit 1
+}
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPO%%/*}" >/dev/null
-docker buildx build --platform linux/arm64 -t "$REPO:$TAG" --push "$ROOT/agent"
+docker buildx build --platform linux/arm64 --build-arg "ASZ_COMMIT=$ASZ_COMMIT" -t "$REPO:$TAG" --push "$ROOT/agent"
 echo "  pushed $REPO:$TAG"
 
 echo "== 3/4 environment (takes ~10 min: NAT, EFS, load balancers, AgentCore) =="

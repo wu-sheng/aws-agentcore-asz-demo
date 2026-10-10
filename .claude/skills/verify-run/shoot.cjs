@@ -1,12 +1,13 @@
 // Screenshot one asz conversation for review or a blog post.
 //
-//   node shoot.cjs <asz-ui-url> <conversation-id> <out-dir> [--prompt-talk N] [--idle-talk N]
+//   node shoot.cjs <asz-ui-url> <conversation-id> <out-dir> [--prompt-talk N] [--change-talk N] [--idle-talk N]
 //
 // Writes, at a 1280 px viewport and 2x scale so UI text survives an ~800 px column:
 //   list.png          the conversation list
 //   conversation.png  every talk of the conversation, cropped to the transcript
 //   turn.png          talk --prompt-talk (default 2) expanded: its model and tool steps
 //   prompt.png        the Prompt tab of that talk's last model call, messages open
+//   change.png        with --change-talk N: talk N's write_file step and the file it changed
 //   idle-prompt.png   with --idle-talk N: the Prompt tab of talk N's first model call
 //   api/*.json        every /api response the pages loaded (token counts, ids)
 //
@@ -17,10 +18,11 @@ const fs = require('fs');
 const path = require('path');
 
 const [U, C, OUT, ...rest] = process.argv.slice(2);
-if (!U || !C || !OUT) { console.error('usage: shoot.cjs <ui-url> <conversation-id> <out-dir> [--prompt-talk N] [--idle-talk N]'); process.exit(1); }
+if (!U || !C || !OUT) { console.error('usage: shoot.cjs <ui-url> <conversation-id> <out-dir> [--prompt-talk N] [--change-talk N] [--idle-talk N]'); process.exit(1); }
 const opt = (name, dflt) => { const i = rest.indexOf(name); return i >= 0 ? Number(rest[i + 1]) : dflt; };
 const PROMPT_TALK = opt('--prompt-talk', 2);
 const IDLE_TALK = opt('--idle-talk', 0);
+const CHANGE_TALK = opt('--change-talk', 0);
 fs.mkdirSync(path.join(OUT, 'api'), { recursive: true });
 
 // Grow the viewport until nothing under `sel` scrolls, so one element screenshot
@@ -107,6 +109,25 @@ async function fit(page, sel) {
   await open(`${U}/c/${C}`);
   calls = await callsOf(PROMPT_TALK);
   await promptOf(calls.last(), 'prompt.png');
+
+  if (CHANGE_TALK) {
+    // The step of the tool the recorder watched, and what it changed.
+    await open(`${U}/c/${C}`);
+    await callsOf(CHANGE_TALK);
+    await page.locator('.acv-title', { hasText: 'write_file' }).last().click();
+    await page.waitForTimeout(500);
+    const tab = page.locator('.acv-tab', { hasText: 'Changes' });
+    if (await tab.count()) { await tab.click(); await page.waitForTimeout(800); }
+    else console.log('no Changes tab on the write_file step');
+    // Open each changed file's row, so the diff is in the picture.
+    const rows = page.locator('.acv-inspector .acv-change-file-row[aria-expanded="false"]');
+    for (let i = await rows.count(); i > 0; i--) { await rows.first().click(); await page.waitForTimeout(400); }
+    await page.locator('.acv-pop-btn').first().click();
+    await page.waitForTimeout(600);
+    await fit(page, '.acv-inspector');
+    await shot(page.locator('.acv-inspector'), 'change.png');
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
 
   if (IDLE_TALK) {
     await open(`${U}/c/${C}`);

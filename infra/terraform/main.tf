@@ -8,6 +8,9 @@
 #       * internal load balancer, port 1985: LangSmith receiver (agent -> asz)
 #       * public load balancer, port 8787: asz UI, open to asz_ui_cidrs only
 #   - the agent on Bedrock AgentCore Runtime, in VPC mode in the private subnets
+#   - what the agent's tools change on disk: asz-changes in the agent writes
+#     it to an EFS access point the runtime mounts at /mnt/changes; asz mounts
+#     the same directory at /asz/changes and reads it with its changes adapter
 #
 # Created by AWS outside this state (scripts/down.sh handles or reports them):
 #   - log groups /aws/bedrock-agentcore/runtimes/<runtime-id>-* (deleted by down.sh)
@@ -34,17 +37,34 @@ locals {
   asz_ingest_port = 1985
 
   # asz configuration, written to /asz/config/asz.yaml by the init container.
-  # Listing adapters replaces asz's defaults: only the LangSmith receiver runs.
+  # Listing adapters replaces asz's defaults: the LangSmith receiver brings the
+  # conversation, the changes adapter what the agent's tools changed on disk.
   asz_config = yamlencode({
     storage = { root = "/asz/data" }
-    adapters = [{
-      name      = "langsmith-ingest"
-      enabled   = true
-      listen    = "0.0.0.0:${local.asz_ingest_port}"
-      token     = random_password.asz_ingest_token.result
-      collector = { mode = "watch", interval = var.asz_collect_interval }
-    }]
+    adapters = [
+      {
+        name      = "langsmith-ingest"
+        enabled   = true
+        listen    = "0.0.0.0:${local.asz_ingest_port}"
+        token     = random_password.asz_ingest_token.result
+        collector = { mode = "watch", interval = var.asz_collect_interval }
+      },
+      {
+        name        = "changes"
+        enabled     = true
+        source_root = "/asz/changes"
+        collector   = { mode = "watch", interval = var.asz_collect_interval }
+      },
+    ]
   })
+
+  # Which tools asz-changes watches; the init container writes it onto EFS.
+  changes_settings = file("${path.module}/../../config/asz-changes-settings.yaml")
+
+  # Where the agent clones the demo repository (the microVM's own disk, gone
+  # with the session) and where the runtime mounts the shared changes directory.
+  agent_workspace     = "/home/agent/workspace"
+  agent_changes_mount = "/mnt/changes"
 
   agent_enabled = var.agent_image_tag != ""
 }
@@ -233,12 +253,12 @@ resource "aws_security_group" "asz" {
 resource "aws_security_group" "efs" {
   name_prefix = "${local.name}-efs-"
   vpc_id      = aws_vpc.this.id
-  description = "EFS mount targets: NFS from the asz task"
+  description = "EFS mount targets: NFS from the asz task and the agent"
   ingress {
     from_port       = 2049
     to_port         = 2049
     protocol        = "tcp"
-    security_groups = [aws_security_group.asz.id]
+    security_groups = [aws_security_group.asz.id, aws_security_group.agent.id]
   }
   tags = { Name = "${local.name}-efs-sg" }
 }
@@ -265,6 +285,25 @@ resource "aws_efs_access_point" "asz" {
   }
   root_directory {
     path = "/asz-data"
+    creation_info {
+      owner_gid   = 65532
+      owner_uid   = 65532
+      permissions = "0755"
+    }
+  }
+}
+
+# What the agent's tools changed: asz-changes in the agent writes here through
+# the AgentCore runtime's mount, asz's changes adapter reads it. Every write
+# through the access point is uid 65532, so asz owns what the agent wrote.
+resource "aws_efs_access_point" "changes" {
+  file_system_id = aws_efs_file_system.asz.id
+  posix_user {
+    gid = 65532
+    uid = 65532
+  }
+  root_directory {
+    path = "/asz-changes"
     creation_info {
       owner_gid   = 65532
       owner_uid   = 65532
@@ -390,6 +429,18 @@ resource "aws_ecs_task_definition" "asz" {
     }
   }
 
+  volume {
+    name = "asz-changes"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.asz.id
+      transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.changes.id
+        iam             = "DISABLED"
+      }
+    }
+  }
+
   # Task-local scratch volume carrying asz.yaml from the init container.
   volume {
     name = "asz-config"
@@ -398,13 +449,23 @@ resource "aws_ecs_task_definition" "asz" {
   container_definitions = jsonencode([
     {
       # The asz image is distroless (no shell), so a one-shot init container
-      # writes the configuration file it reads.
-      name        = "asz-config"
-      image       = "public.ecr.aws/docker/library/busybox:1.37"
-      essential   = false
-      command     = ["sh", "-c", "printf '%s' \"$ASZ_CONFIG\" > /config/asz.yaml"]
-      environment = [{ name = "ASZ_CONFIG", value = local.asz_config }]
-      mountPoints = [{ sourceVolume = "asz-config", containerPath = "/config" }]
+      # writes the configuration file it reads, and the settings asz-changes
+      # reads from the shared changes directory.
+      name      = "asz-config"
+      image     = "public.ecr.aws/docker/library/busybox:1.37"
+      essential = false
+      command = ["sh", "-c", join(" && ", [
+        "printf '%s' \"$ASZ_CONFIG\" > /config/asz.yaml",
+        "printf '%s' \"$ASZ_CHANGES_SETTINGS\" > /changes/settings.yaml",
+      ])]
+      environment = [
+        { name = "ASZ_CONFIG", value = local.asz_config },
+        { name = "ASZ_CHANGES_SETTINGS", value = local.changes_settings },
+      ]
+      mountPoints = [
+        { sourceVolume = "asz-config", containerPath = "/config" },
+        { sourceVolume = "asz-changes", containerPath = "/changes" },
+      ]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -426,6 +487,7 @@ resource "aws_ecs_task_definition" "asz" {
       ]
       mountPoints = [
         { sourceVolume = "asz-data", containerPath = "/asz/data", readOnly = false },
+        { sourceVolume = "asz-changes", containerPath = "/asz/changes", readOnly = false },
         { sourceVolume = "asz-config", containerPath = "/asz/config", readOnly = true },
       ]
       logConfiguration = {
@@ -525,6 +587,17 @@ resource "aws_iam_role_policy" "agent" {
         }
       },
       {
+        # The runtime mounts the changes access point, and nothing else of the
+        # file system, with IAM authentication.
+        Sid      = "MountChanges"
+        Effect   = "Allow"
+        Action   = ["elasticfilesystem:ClientMount", "elasticfilesystem:ClientWrite"]
+        Resource = aws_efs_file_system.asz.arn
+        Condition = {
+          ArnEquals = { "elasticfilesystem:AccessPointArn" = aws_efs_access_point.changes.arn }
+        }
+      },
+      {
         Sid      = "InvokeModel"
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Converse", "bedrock:ConverseStream"]
@@ -556,6 +629,14 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     }
   }
 
+  # The shared changes directory, mounted into every session's microVM.
+  filesystem_configuration {
+    efs_access_point {
+      access_point_arn = aws_efs_access_point.changes.arn
+      mount_path       = local.agent_changes_mount
+    }
+  }
+
   # Unset = AgentCore's defaults: 15 minutes idle, 8 hours at most.
   lifecycle_configuration = var.agent_idle_session_timeout == null ? null : [{
     idle_runtime_session_timeout = var.agent_idle_session_timeout
@@ -569,6 +650,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       LANGSMITH_API_KEY  = random_password.asz_ingest_token.result
       LANGSMITH_PROJECT  = var.project_name
       AWS_REGION         = var.aws_region
+      # File-change recording: the shim runs asz-changes around each tool the
+      # settings name, watching the workspace and writing to the shared mount.
+      DEMO_WORKSPACE   = local.agent_workspace
+      ASZ_CHANGES      = "true"
+      ASZ_WATCH        = local.agent_workspace
+      ASZ_CHANGES_DATA = local.agent_changes_mount
     },
     var.bedrock_model_id != "" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
   )
@@ -576,6 +663,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   depends_on = [
     aws_iam_role_policy.agent,
     aws_ecs_service.asz,
+    aws_efs_mount_target.asz,
     aws_route_table_association.private,
   ]
 }

@@ -33,8 +33,10 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import uuid
+from pathlib import Path
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -48,7 +50,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 SYSTEM_PROMPT = (
     "You are a deployment advisor for running LangGraph agents on Amazon Bedrock "
     "AgentCore Runtime with Apache SkyWalking AI Sessionizer (asz) observability. "
-    "Use the tools to look facts up instead of guessing, and answer briefly."
+    "Use the tools to look facts up instead of guessing, and answer briefly. "
+    "You can clone the demo repository and read and write its files."
 )
 
 # --------------------------------------------------------------------------- #
@@ -85,8 +88,17 @@ _KNOWLEDGE = {
     ),
     "teardown": (
         "Every AWS resource is in OpenTofu state, including the AgentCore runtime. "
-        "scripts/down.sh runs tofu destroy, deletes the log groups AgentCore "
-        "creates at runtime, and lists anything still tagged with the project."
+        "scripts/down.sh destroys it all and deletes the log groups AgentCore creates "
+        "at runtime. AWS keeps AgentCore's network interfaces for up to 8 hours after "
+        "the runtime is gone, so the VPC, its subnets and a security group, all free, "
+        "can outlast the first run: scripts/down.sh check reports, and "
+        "scripts/down.sh --yes later finishes."
+    ),
+    "file_changes": (
+        "asz-changes, attached by the apache-skywalking-asz-langchain shim, scans the "
+        "workspace before and after each tool its settings name (write_file here) and "
+        "records what changed. asz's changes adapter files that beside the tool call, "
+        "in the same conversation, so the change outlives the microVM it was made in."
     ),
     "image": (
         "The asz image is ghcr.io/apache/skywalking-ai-sessionizer (multi-arch, "
@@ -98,7 +110,7 @@ _KNOWLEDGE = {
 @tool
 def search_docs(topic: str) -> str:
     """Look up a deployment fact. Topics: sidecar, ingest_port, env_vars, otlp,
-    networking, teardown, image."""
+    networking, teardown, image, file_changes."""
     key = topic.strip().lower().replace(" ", "_").replace("-", "_")
     if key in _KNOWLEDGE:
         return _KNOWLEDGE[key]
@@ -140,32 +152,113 @@ def estimate_cost(hours: float) -> str:
     )
 
 
-TOOLS = [search_docs, check_deployment, estimate_cost]
+# --------------------------------------------------------------------------- #
+# The workspace: a clone of this demo, which the agent may change             #
+# --------------------------------------------------------------------------- #
+# On AgentCore the workspace is on the microVM's own disk, so it goes when the
+# session's microVM is stopped. asz-changes (see the Dockerfile) watches it: it
+# scans before and after write_file and records the difference beside the call.
+REPO_URL = os.getenv("DEMO_REPO_URL", "https://github.com/wu-sheng/aws-agentcore-asz-demo")
+WORKSPACE = Path(os.getenv("DEMO_WORKSPACE") or Path.home() / "workspace")
+REPO_DIR = WORKSPACE / "aws-agentcore-asz-demo"
+_NOT_CLONED = "The repository is not cloned in this workspace; call clone_demo_repo first."
+
+
+def _in_repo(path: str) -> Path:
+    """The file a repository path names, refusing anything outside the clone."""
+    root = REPO_DIR.resolve()
+    target = (root / path).resolve()
+    if target != root and root not in target.parents:
+        raise ValueError("outside the repository")
+    return target
+
+
+@tool
+def clone_demo_repo() -> str:
+    """Clone the demo repository, wu-sheng/aws-agentcore-asz-demo, into the
+    workspace unless it is already there, and list its top-level entries."""
+    if not (REPO_DIR / ".git").is_dir():
+        WORKSPACE.mkdir(parents=True, exist_ok=True)
+        done = subprocess.run(
+            ["git", "clone", "--depth", "1", "--quiet", REPO_URL, str(REPO_DIR)],
+            capture_output=True, text=True, timeout=120,
+        )
+        if done.returncode != 0:
+            return f"git clone failed: {done.stderr.strip()[-300:]}"
+    entries = sorted(e.name + ("/" if e.is_dir() else "") for e in REPO_DIR.iterdir() if e.name != ".git")
+    return f"{REPO_URL} is cloned at {REPO_DIR}: {', '.join(entries)}"
+
+
+@tool
+def read_file(path: str) -> str:
+    """Read a file of the cloned demo repository, by its path in the repository,
+    e.g. infra/terraform/terraform.tfvars.example."""
+    if not REPO_DIR.is_dir():
+        return _NOT_CLONED
+    try:
+        return _in_repo(path).read_text()[:20000]
+    except (OSError, ValueError) as e:
+        return f"cannot read {path!r}: {e}"
+
+
+@tool
+def write_file(path: str, content: str) -> str:
+    """Write a file of the cloned demo repository, by its path in the repository,
+    creating it or replacing its whole content."""
+    if not REPO_DIR.is_dir():
+        return _NOT_CLONED
+    try:
+        target = _in_repo(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+        return f"wrote {path} ({len(content.encode())} bytes)"
+    except (OSError, ValueError) as e:
+        return f"cannot write {path!r}: {e}"
+
+
+TOOLS = [search_docs, check_deployment, estimate_cost, clone_demo_repo, read_file, write_file]
 
 
 # --------------------------------------------------------------------------- #
 # Model                                                                       #
 # --------------------------------------------------------------------------- #
-# (whole words in the question, tool calls to make) for the scripted stand-in;
-# the first entry with a match wins.
-_SCRIPT: list[tuple[tuple[str, ...], list[tuple[str, dict[str, Any]]]]] = [
-    (("sidecar",), [("search_docs", {"topic": "sidecar"})]),
-    (("otlp", "replay"), [("search_docs", {"topic": "otlp"})]),
-    (("port", "landed", "8787"), [
+# The scripted stand-in's plays: (whole words in the question, rounds of tool
+# calls). Each round is sent after the results of the one before; the first
+# entry with a matching word wins. _FROM_RESULT stands for an argument the
+# stand-in derives from the last tool result, as a real model would.
+_FROM_RESULT = object()
+
+_SCRIPT: list[tuple[tuple[str, ...], list[list[tuple[str, dict[str, Any]]]]]] = [
+    (("clone", "tfvars"), [
+        [("clone_demo_repo", {})],
+        [("read_file", {"path": "infra/terraform/terraform.tfvars.example"})],
+        [("write_file", {"path": "infra/terraform/terraform.tfvars", "content": _FROM_RESULT})],
+    ]),
+    (("sidecar",), [[("search_docs", {"topic": "sidecar"})]]),
+    (("otlp", "replay"), [[("search_docs", {"topic": "otlp"})]]),
+    (("port", "landed", "8787"), [[
         ("check_deployment", {"component": "tracing"}),
         ("search_docs", {"topic": "ingest_port"}),
-    ]),
-    (("cost", "tear", "destroy"), [
+    ]]),
+    (("cost", "tear", "destroy"), [[
         ("estimate_cost", {"hours": 4}),
         ("search_docs", {"topic": "teardown"}),
-    ]),
-    (("network", "reach", "vpc"), [("search_docs", {"topic": "networking"})]),
+    ]]),
+    (("network", "reach", "vpc"), [[("search_docs", {"topic": "networking"})]]),
 ]
 
 
+def _tfvars_from(example: str) -> str:
+    """What the stand-in writes for the tfvars turn: the example with the
+    question's IP and a five-minute idle timeout."""
+    out = re.sub(r"(?m)^asz_ui_cidrs\s*=.*$", 'asz_ui_cidrs = ["198.51.100.24/32"]', example)
+    return out.rstrip("\n") + "\n\n# Stop a session's microVM after 5 idle minutes.\nagent_idle_session_timeout = 300\n"
+
+
 class ScriptedAdvisor(BaseChatModel):
-    """Credential-free stand-in: calls the tools a real model would, then answers
-    from what they returned. Deterministic, so the demo trace is reproducible."""
+    """Credential-free stand-in: calls the tools a real model would, round by
+    round, then answers from what the last round returned. Deterministic, so
+    the demo trace is reproducible."""
 
     @property
     def _llm_type(self) -> str:
@@ -175,29 +268,34 @@ class ScriptedAdvisor(BaseChatModel):
         return self
 
     def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
-        last = messages[-1]
-        if isinstance(last, ToolMessage):
-            # Answer from every tool result since the last question.
-            results = []
-            for m in reversed(messages):
-                if isinstance(m, HumanMessage):
-                    break
-                if isinstance(m, ToolMessage):
-                    results.append(str(m.content))
-            msg = AIMessage(content=" ".join(reversed(results)))
+        # This turn: its question and everything after it.
+        turn: list[BaseMessage] = []
+        question = ""
+        for m in reversed(messages):
+            if isinstance(m, HumanMessage):
+                question = str(m.content)
+                break
+            turn.insert(0, m)
+        words = set(re.findall(r"[a-z0-9]+", question.lower()))
+        rounds = next((r for keys, r in _SCRIPT if words & set(keys)), [])
+        done = sum(1 for m in turn if isinstance(m, AIMessage) and m.tool_calls)
+        last: list[str] = []  # the results of the latest round of tool calls
+        for m in reversed(turn):
+            if isinstance(m, AIMessage):
+                break
+            if isinstance(m, ToolMessage):
+                last.insert(0, str(m.content))
+        if done < len(rounds):
+            calls = []
+            for name, args in rounds[done]:
+                args = {k: (_tfvars_from(last[-1] if last else "") if v is _FROM_RESULT else v) for k, v in args.items()}
+                calls.append({"name": name, "args": args, "id": f"call_{uuid.uuid4().hex[:12]}", "type": "tool_call"})
+            msg = AIMessage(content="", tool_calls=calls)
+        elif rounds:
+            msg = AIMessage(content=" ".join(last))
         else:
-            words = set(re.findall(r"[a-z0-9]+", str(last.content).lower()))
-            calls = next((c for keys, c in _SCRIPT if words & set(keys)), [])
-            if calls:
-                msg = AIMessage(
-                    content="",
-                    tool_calls=[
-                        {"name": n, "args": a, "id": f"call_{uuid.uuid4().hex[:12]}", "type": "tool_call"}
-                        for n, a in calls
-                    ],
-                )
-            else:
-                msg = AIMessage(content="I can help with sidecars, ports, OTLP vs replay, networking, cost and teardown.")
+            msg = AIMessage(content="I can help with sidecars, ports, OTLP vs replay, networking, cost, teardown, "
+                                    "and preparing the demo repository's files.")
         return ChatResult(generations=[ChatGeneration(message=msg)])
 
 
@@ -264,6 +362,8 @@ DEMO_TURNS = [
     "OK, separate service then. I pointed the LangSmith client at asz on 8787 and nothing landed. Which port should it be?",
     "Is asz's OTLP export enough for full replay, or do I still need the LangSmith wire?",
     "How much will the PoC cost if I leave it up for 4 hours, and how do I tear everything down afterwards?",
+    "Clone the demo repo and prepare infra/terraform/terraform.tfvars from the example for me: "
+    "my IP is 198.51.100.24, and stop idle sessions after 5 minutes.",
 ]
 
 

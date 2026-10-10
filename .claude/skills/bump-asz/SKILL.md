@@ -17,10 +17,13 @@ last release and lags main.
    ```
    The UI renderer comes from Horizon at the commit in
    `internal/view/conversation-view/HORIZON_COMMIT` of that asz commit.
-2. Set the full id in both places, which must agree:
-   `scripts/run-asz-local.sh` (`ASZ_IMAGE` default) and `infra/terraform/variables.tf` (`asz_image` default).
+2. Set the full id in every place, which must agree: `scripts/run-asz-local.sh` (`ASZ_IMAGE`
+   default), `infra/terraform/variables.tf` (`asz_image` default), and `agent/Dockerfile`
+   (`ARG ASZ_COMMIT` default). `up.sh` and `run-agent-local.sh` pass the pinned commit as the
+   build arg, so the image's `asz-changes` and LangChain shim always match the asz image.
 3. Update the README's status line that names the pinned commit and why.
 4. Check with the `tier1-local` skill: restart asz on the new image against the existing volume,
-   land a fresh demo conversation, and `docker exec asz-local /usr/local/bin/asz verify`.
+   run `./scripts/run-agent-local.sh` (it rebuilds the agent image at the new commit), check the
+   conversation and its file change landed, and `docker exec asz-local /usr/local/bin/asz verify`.
 5. PR: summary names the asz PR(s) the bump brings in; "Tested" lists the Tier-1 run;
    "Not tested" says Tier 2 was not re-applied, unless it was.

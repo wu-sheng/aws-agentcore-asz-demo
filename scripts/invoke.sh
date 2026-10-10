@@ -3,7 +3,7 @@
 #
 # All turns share one AgentCore runtime session id, so they land in asz as one
 # conversation (the agent uses the session id as its thread).
-#   ./scripts/invoke.sh                 the four-turn demo conversation
+#   ./scripts/invoke.sh                 the five-turn demo conversation
 #   ./scripts/invoke.sh "question"      one turn on a fresh session
 #   SESSION=<id> ./scripts/invoke.sh "question"
 #                                       one more turn on an earlier session
@@ -32,6 +32,7 @@ else
     "OK, separate service then. I pointed the LangSmith client at asz on 8787 and nothing landed. Which port should it be?"
     "Is asz's OTLP export enough for full replay, or do I still need the LangSmith wire?"
     "How much will the PoC cost if I leave it up for 4 hours, and how do I tear everything down afterwards?"
+    "Clone the demo repo and prepare infra/terraform/terraform.tfvars from the example for me: my IP is 198.51.100.24, and stop idle sessions after 5 minutes."
   )
 fi
 
