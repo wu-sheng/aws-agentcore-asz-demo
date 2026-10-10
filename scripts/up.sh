@@ -20,13 +20,16 @@ DEPLOY="$ROOT/.deploy"
   exit 1
 }
 
-echo "== AWS identity =="
-aws sts get-caller-identity --query Arn --output text
-
 cd "$TF"
 tofu init -input=false >/dev/null
 REGION="$(tofu console <<<'var.aws_region' | tr -d '"')"
 export AWS_REGION="$REGION"
+# Use the tfvars profile for the AWS CLI too, so tofu and aws act as one identity.
+PROFILE="$(tofu console <<<'var.aws_profile == null ? "" : var.aws_profile' | tr -d '"')"
+[ -z "$PROFILE" ] || export AWS_PROFILE="$PROFILE"
+
+echo "== AWS identity =="
+aws sts get-caller-identity --query Arn --output text
 
 echo "== 1/4 ECR repository =="
 tofu apply -input=false -auto-approve -target=aws_ecr_repository.agent >/dev/null

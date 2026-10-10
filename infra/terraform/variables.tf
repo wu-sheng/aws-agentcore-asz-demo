@@ -104,6 +104,22 @@ variable "agent_image_tag" {
   default     = ""
 }
 
+variable "agent_idle_session_timeout" {
+  description = <<-EOT
+    Seconds an AgentCore session may sit idle before its microVM is stopped
+    (60-28800). null = the AgentCore default, 900. A later call on the same
+    session id starts a fresh microVM, so the agent's in-memory history is gone.
+  EOT
+  type        = number
+  default     = null
+}
+
+variable "agent_max_session_lifetime" {
+  description = "Seconds a session's microVM may live at most (60-28800). Used only with agent_idle_session_timeout."
+  type        = number
+  default     = 28800
+}
+
 variable "bedrock_model_id" {
   description = "Bedrock model (or inference profile) id for the agent. Empty = the scripted stand-in model."
   type        = string

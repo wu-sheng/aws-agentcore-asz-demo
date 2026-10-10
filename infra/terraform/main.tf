@@ -2,7 +2,7 @@
 # The whole Tier-2 environment. Every AWS resource the demo needs is here, in
 # OpenTofu state, so `tofu destroy` (scripts/down.sh) removes all of it:
 #
-#   - VPC: public + private subnets in 2 AZs, NAT gateway
+#   - VPC: public + private subnets in 2 AZs, NAT gateway, S3 gateway endpoint
 #   - ECR repo for the agent image
 #   - asz on ECS/Fargate, /asz/data on EFS
 #       * internal load balancer, port 1985: LangSmith receiver (agent -> asz)
@@ -125,6 +125,17 @@ resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
+}
+
+# AgentCore keeps refreshing the agent image from ECR, whose layers are in S3.
+# A gateway endpoint is free and keeps that traffic off the NAT gateway's
+# per-GB charge, as the AgentCore VPC guide recommends.
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+  tags              = { Name = "${local.name}-s3" }
 }
 
 # --- ECR for the agent image ------------------------------------------------
@@ -272,11 +283,14 @@ resource "aws_lb" "ingest" {
 }
 
 resource "aws_lb_target_group" "ingest" {
-  name        = substr("${local.name}-ingest", 0, 32)
-  port        = local.asz_ingest_port
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.this.id
-  target_type = "ip"
+  name = substr("${local.name}-ingest", 0, 32)
+  # One task, stopped before its replacement starts: nothing to drain, and the
+  # default 300s would hold every update and every destroy for five minutes.
+  deregistration_delay = 15
+  port                 = local.asz_ingest_port
+  protocol             = "HTTP"
+  vpc_id               = aws_vpc.this.id
+  target_type          = "ip"
   health_check {
     path    = "/info" # the receiver's LangSmith /info answers 200
     matcher = "200"
@@ -302,11 +316,12 @@ resource "aws_lb" "ui" {
 }
 
 resource "aws_lb_target_group" "ui" {
-  name        = substr("${local.name}-ui", 0, 32)
-  port        = local.asz_ui_port
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.this.id
-  target_type = "ip"
+  name                 = substr("${local.name}-ui", 0, 32)
+  deregistration_delay = 15
+  port                 = local.asz_ui_port
+  protocol             = "HTTP"
+  vpc_id               = aws_vpc.this.id
+  target_type          = "ip"
   health_check {
     path    = "/"
     matcher = "200-399"
@@ -540,6 +555,12 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
       security_groups = [aws_security_group.agent.id]
     }
   }
+
+  # Unset = AgentCore's defaults: 15 minutes idle, 8 hours at most.
+  lifecycle_configuration = var.agent_idle_session_timeout == null ? null : [{
+    idle_runtime_session_timeout = var.agent_idle_session_timeout
+    max_lifetime                 = var.agent_max_session_lifetime
+  }]
 
   environment_variables = merge(
     {
