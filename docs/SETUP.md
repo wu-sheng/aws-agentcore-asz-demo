@@ -174,6 +174,11 @@ This deletes asz's stored conversations (EFS) and the agent images (ECR).
   use-case form (Bedrock console, Model access) and wait ~15 min. "is not available
   for this account": AWS does not serve that model to this account; ask AWS Support,
   or pick another model, e.g. `BEDROCK_MODEL_ID=us.amazon.nova-pro-v1:0 ./scripts/up.sh`.
+- **apply fails with "Execution role is missing required filesystem permissions"**:
+  `CreateAgentRuntime` checks `elasticfilesystem:DescribeAccessPoints` and
+  `DescribeMountTargets` without a resource; `main.tf` grants both on `*`.
+- **up.sh fails pushing the image** (`proxyconnect ... i/o timeout`): a proxy timed out
+  mid-layer. `up.sh` retries three times; re-running it skips layers already in ECR.
 - **conversation never appears**: `aws logs tail /ecs/<project>-asz --follow`
   shows asz; the agent's logs are under `/aws/bedrock-agentcore/runtimes/`.
 - **UI unreachable**: `asz_ui_cidrs` must include your current public IP.
