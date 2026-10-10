@@ -5,7 +5,7 @@
 | Tool | Why | Install (macOS) | Needed for |
 |---|---|---|---|
 | Python 3.10+ | the agent | `brew install python` | Tier 1 + 2 |
-| Docker Desktop (with buildx) | asz locally; build the arm64 agent image | docker.com | Tier 1 + 2 |
+| Docker Desktop (with buildx) | asz locally; Tier-1 agent image builds; `up.sh` copies the published agent image into ECR | docker.com | Tier 1 + 2 |
 | OpenTofu | `infra/terraform/` (`tofu`) | `brew install opentofu` | Tier 2 |
 | AWS CLI v2 | credentials, ECR login, invoking the agent | `brew install awscli` | Tier 2 |
 
@@ -76,9 +76,13 @@ cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
 ./scripts/down.sh
 ```
 
-`up.sh` applies in two steps because the AgentCore runtime needs the image to
-exist: it creates the ECR repo, builds and pushes `linux/arm64`, then applies
-everything else with that tag.
+The agent image is built and published only by GitHub Actions
+(`.github/workflows/agent-image.yml`): `linux/arm64`, to
+`ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent`, tagged with the commit and `main`.
+AgentCore runs images only from ECR, so `up.sh` pulls that image, checks it carries
+`asz-changes` from the asz commit `var.asz_image` pins, creates the ECR repo, copies
+the image in, then applies everything else with that tag. `AGENT_IMAGE` picks
+another published tag, e.g. a commit id. Nothing is built locally for Tier 2.
 
 ### 3.3 What gets created
 

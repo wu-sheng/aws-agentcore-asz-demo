@@ -1,0 +1,75 @@
+# Builds the agent's container image and publishes it to GHCR:
+#   ghcr.io/<owner>/aws-agentcore-asz-demo-agent:<commit>  and  :main
+#
+# scripts/up.sh copies it into the account's ECR, because AgentCore Runtime
+# runs images only from ECR. The image carries asz-changes and the LangChain
+# shim built from the asz commit scripts/run-asz-local.sh pins, which is the
+# same commit var.asz_image names. Pull requests build it without pushing.
+name: agent-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - agent/**
+      - scripts/run-asz-local.sh
+      - .github/workflows/agent-image.yml
+  pull_request:
+    paths:
+      - agent/**
+      - scripts/run-asz-local.sh
+      - .github/workflows/agent-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    # AgentCore runs linux/arm64; build it natively.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pinned asz commit
+        id: asz
+        run: |
+          c=$(sed -n 's/^ASZ_IMAGE=.*skywalking-ai-sessionizer:\([0-9a-f]\{40\}\).*/\1/p' scripts/run-asz-local.sh)
+          t=$(sed -n 's/.*default *= *"ghcr.io\/apache\/skywalking-ai-sessionizer:\([0-9a-f]\{40\}\)".*/\1/p' infra/terraform/variables.tf)
+          if [ "${#c}" != 40 ] || [ "$c" != "$t" ]; then
+            echo "::error::scripts/run-asz-local.sh ($c) and var.asz_image ($t) must pin the same full asz commit"
+            exit 1
+          fi
+          echo "commit=$c" >> "$GITHUB_OUTPUT"
+
+      - name: Tags
+        id: tags
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/aws-agentcore-asz-demo-agent"
+          tags="$image:$GITHUB_SHA"
+          # :main moves only with main, never with a manual run from a branch.
+          [ "$GITHUB_REF" = refs/heads/main ] && tags="$tags,$image:main"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: agent
+          platforms: linux/arm64
+          build-args: ASZ_COMMIT=${{ steps.asz.outputs.commit }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

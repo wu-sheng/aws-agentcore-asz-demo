@@ -41,8 +41,12 @@ Run it in the background, logging to `.deploy/up.log`, because it takes ~10 minu
 ```bash
 mkdir -p .deploy && ./scripts/up.sh > .deploy/up.log 2>&1; echo "exit=$?" >> .deploy/up.log
 ```
-Steps: ECR repo -> `linux/arm64` agent image build and push -> `tofu apply` of everything else ->
-`.deploy/resources.txt` (the manifest `down.sh` reads). It is re-runnable.
+Steps: model check -> pull `ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent:main` (built and
+published only by the `agent-image` GitHub Actions workflow) and check its asz commit -> ECR repo ->
+copy the image in -> `tofu apply` of everything else -> `.deploy/resources.txt` (the manifest
+`down.sh` reads). It is re-runnable. `AGENT_IMAGE` picks another published tag. If `up.sh` says
+the image's asz commit differs from `var.asz_image`, the workflow on main has not published
+the current pin yet: wait for it (`gh run list -w agent-image`), do not build locally.
 
 ## After
 

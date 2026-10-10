@@ -25,5 +25,7 @@ last release and lags main.
 4. Check with the `tier1-local` skill: restart asz on the new image against the existing volume,
    run `./scripts/run-agent-local.sh` (it rebuilds the agent image at the new commit), check the
    conversation and its file change landed, and `docker exec asz-local /usr/local/bin/asz verify`.
-5. PR: summary names the asz PR(s) the bump brings in; "Tested" lists the Tier-1 run;
+5. After the PR merges, the `agent-image` workflow publishes the image built at the new commit to
+   GHCR; `up.sh` refuses the old one until then.
+6. PR: summary names the asz PR(s) the bump brings in; "Tested" lists the Tier-1 run;
    "Not tested" says Tier 2 was not re-applied, unless it was.

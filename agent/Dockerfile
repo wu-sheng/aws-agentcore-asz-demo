@@ -1,11 +1,14 @@
-# AgentCore Runtime requires a linux/arm64 image in ECR. scripts/up.sh builds
-# and pushes it:  docker buildx build --platform linux/arm64 -t <ecr-uri>:<tag> --push .
+# AgentCore Runtime requires a linux/arm64 image in ECR. Only GitHub Actions
+# builds and publishes this image (.github/workflows/agent-image.yml, to GHCR);
+# scripts/up.sh copies it into the account's ECR. scripts/run-agent-local.sh
+# builds it from a checkout for local testing and never pushes it.
 #
 # Besides the agent, the image carries what records which tool changed which
 # files: asz-changes, and the LangChain shim that runs it around each tool
 # call. Both come from apache/skywalking-ai-sessionizer at ASZ_COMMIT, the
-# same commit as the asz image (scripts/up.sh passes it from var.asz_image),
-# so the shim files a change under the conversation name asz gives it.
+# same commit as the asz image (the workflow, up.sh and run-agent-local.sh
+# pass the pinned commit), so the shim files a change under the conversation
+# name asz gives it.
 ARG ASZ_COMMIT=8104ada77cbd0d5ca69754d50cbbc0cd6f9bbec5
 
 # asz-changes is pure Go: build it on the build machine for the target.
@@ -20,6 +23,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
       go build -trimpath -ldflags "-s -w" -o /out/asz-changes ./plugins/claude-code
 
 FROM python:3.12-slim
+ARG ASZ_COMMIT
+# up.sh compares this with the asz commit var.asz_image pins.
+LABEL io.github.wu-sheng.asz-commit=$ASZ_COMMIT
 
 WORKDIR /app
 

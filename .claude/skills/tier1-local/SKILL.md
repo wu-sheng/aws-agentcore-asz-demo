@@ -30,7 +30,9 @@ description: Run the demo locally with no AWS - asz in Docker, the LangGraph age
    ```bash
    ./scripts/run-agent-local.sh          # builds the image, five turns on a fresh thread
    ```
-   It runs as uid 65532 on the `asz-demo` network, clones into the container, and writes the
+   It builds the image from the checkout (it is for testing; it never pushes). `AGENT_IMAGE=
+   ghcr.io/wu-sheng/aws-agentcore-asz-demo-agent:main` runs the published image instead, and
+   `SKIP_BUILD=1` reuses the last local build. It runs as uid 65532 on the `asz-demo` network, clones into the container, and writes the
    recorder's output to the `asz-local-changes` volume that asz-local reads (`changes` adapter).
    Expect the conversation's `changes` to be 1 (+28 lines, the new `terraform.tfvars`) in
    `/api/conversations`, and the diff on turn 5's `write_file` step (inspector, Changes tab).
