@@ -16,7 +16,7 @@ description: Run the demo locally with no AWS - asz in Docker, the LangGraph age
    .venv/bin/python app.py --local --demo --thread-id <thread-id>
    ```
    No `BEDROCK_MODEL_ID` = the scripted stand-in model (deterministic, free). To use a real model,
-   also export `BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-7` and `AWS_REGION=us-east-1`; boto3
+   also export `BEDROCK_MODEL_ID` (e.g. `us.amazon.nova-pro-v1:0`) and `AWS_REGION=us-east-1`; boto3
    uses the user's AWS credentials (or a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK`). Anthropic
    models need the account's Anthropic use-case form first.
 4. Check, within ~10 s (the local collector interval):

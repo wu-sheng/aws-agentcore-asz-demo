@@ -159,6 +159,7 @@ cd agent && set -a && . ./.env.example && set +a
 ```bash
 cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars   # set asz_ui_cidrs
 ./scripts/up.sh       # ~10 min; everything is created by OpenTofu
+                      # model: bedrock_model_id in tfvars (Nova Pro), or BEDROCK_MODEL_ID=... ./scripts/up.sh
 ./scripts/invoke.sh   # the demo conversation, on AgentCore, lands in the remote asz
 ./scripts/down.sh     # destroy everything (VPC can take hours: ./scripts/down.sh check)
 ```

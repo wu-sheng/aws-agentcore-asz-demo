@@ -48,9 +48,18 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
   at `/asz/changes`; locally the `asz-local-changes` volume. A failed mount makes every
   AgentCore invocation return HTTP 424. The recorder ignores `.gitignore`; it skips only
   directories such as `.git`, `.terraform`, `.venv`.
-- The default model is `us.anthropic.claude-opus-4-7`. Any Anthropic model needs the account's
-  one-time Anthropic use-case form (Bedrock console, Model access); without it every AgentCore
-  invocation returns `RuntimeClientError (500)`. A direct `aws bedrock-runtime converse` names it.
+- The recorder keeps one baseline per watched path in that shared directory, so every
+  conversation works in its own `DEMO_WORKSPACE/<thread>` and `ask()` sets `ASZ_WATCH` to it
+  before each turn. One path for all sessions makes a session's first watched tool call record
+  the previous session's leftovers as an `unattributed` change in the wrong conversation.
+- The default model is `us.amazon.nova-pro-v1:0`, which any account can call. `BEDROCK_MODEL_ID`
+  overrides `bedrock_model_id` for one `up.sh` run (empty = scripted stand-in). Bedrock decides
+  per account which models it serves and says so only when a model is called: Claude models need
+  the account's Anthropic use-case form ("Model use case details have not been submitted"), and
+  AWS does not serve every newer Claude model to every account ("is not available for this
+  account"; only AWS Support can change that). `up.sh` calls the model once and stops before
+  building anything if the account cannot use it; without that check the symptom is
+  `RuntimeClientError (500)` on every AgentCore invocation.
 - One AgentCore session = one asz conversation: the agent uses the runtime session id as the
   LangGraph thread and as run metadata. Session ids must be at least 33 characters. The asz
   conversation name is `ls-<project>-<shortened session id>-<digest>`; `invoke.sh` prints the full id.

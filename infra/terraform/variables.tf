@@ -121,7 +121,13 @@ variable "agent_max_session_lifetime" {
 }
 
 variable "bedrock_model_id" {
-  description = "Bedrock model (or inference profile) id for the agent. Empty = the scripted stand-in model."
+  description = <<-EOT
+    Bedrock model (or inference profile) id for the agent. Empty = the scripted
+    stand-in model, no Bedrock calls. BEDROCK_MODEL_ID in the environment of
+    scripts/up.sh overrides this. Amazon Nova Pro needs no extra step in any
+    account; Claude models need the account's Anthropic use-case form, and AWS
+    does not serve every newer model to every account (up.sh checks first).
+  EOT
   type        = string
-  default     = ""
+  default     = "us.amazon.nova-pro-v1:0"
 }

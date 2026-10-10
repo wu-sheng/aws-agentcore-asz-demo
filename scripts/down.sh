@@ -50,6 +50,8 @@ PROFILE="$(tofu console <<<'var.aws_profile == null ? "" : var.aws_profile' | tr
 [ -z "$PROFILE" ] || export AWS_PROFILE="$PROFILE"
 RUNTIME_NAME="$(echo "${PROJECT}_agent" | tr - _)"
 RUNTIME_ID="$(tofu output -raw agent_runtime_id 2>/dev/null || true)"
+# With nothing in state, tofu prints a warning there and still exits 0.
+[[ "$RUNTIME_ID" =~ ^[A-Za-z0-9_-]+$ ]] || RUNTIME_ID=""
 # Fall back to the manifest once state no longer has it (e.g. a re-run).
 if [ -z "$RUNTIME_ID" ] && [ -f "$MANIFEST" ]; then
   RUNTIME_ID="$(sed -n 's/^agent_runtime_id=//p' "$MANIFEST")"

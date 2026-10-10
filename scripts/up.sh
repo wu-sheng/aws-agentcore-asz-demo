@@ -31,6 +31,26 @@ PROFILE="$(tofu console <<<'var.aws_profile == null ? "" : var.aws_profile' | tr
 echo "== AWS identity =="
 aws sts get-caller-identity --query Arn --output text
 
+# The agent's model: BEDROCK_MODEL_ID overrides bedrock_model_id in tfvars
+# (set it empty for the scripted stand-in). Bedrock decides per account which
+# models it serves, and says so only when a model is called, so call it once
+# here rather than learn it from a 500 on the first invocation.
+MODEL="${BEDROCK_MODEL_ID-$(tofu console <<<'var.bedrock_model_id' | tr -d '"')}"
+echo "== model: ${MODEL:-scripted stand-in, no Bedrock} =="
+if [ -n "$MODEL" ]; then
+  if ! out="$(aws bedrock-runtime converse --region "$REGION" --model-id "$MODEL" \
+        --messages '[{"role":"user","content":[{"text":"Reply with OK."}]}]' \
+        --inference-config maxTokens=16 --query 'output.message.content[0].text' --output text 2>&1)"; then
+    echo "$out" | tail -1 >&2
+    echo "This account cannot call $MODEL. Claude models need the account's Anthropic" >&2
+    echo "use-case form (Bedrock console, Model access), and AWS does not serve every newer" >&2
+    echo "model to every account. Pick one it can call, e.g.:" >&2
+    echo "  BEDROCK_MODEL_ID=us.amazon.nova-pro-v1:0 ./scripts/up.sh" >&2
+    exit 1
+  fi
+  echo "  answers"
+fi
+
 echo "== 1/4 ECR repository =="
 tofu apply -input=false -auto-approve -target=aws_ecr_repository.agent >/dev/null
 REPO="$(tofu output -raw agent_ecr_repository_url)"
@@ -51,7 +71,7 @@ docker buildx build --platform linux/arm64 --build-arg "ASZ_COMMIT=$ASZ_COMMIT" 
 echo "  pushed $REPO:$TAG"
 
 echo "== 3/4 environment (takes ~10 min: NAT, EFS, load balancers, AgentCore) =="
-tofu apply -input=false -auto-approve -var "agent_image_tag=$TAG"
+tofu apply -input=false -auto-approve -var "agent_image_tag=$TAG" -var "bedrock_model_id=$MODEL"
 
 echo "== 4/4 resource manifest =="
 mkdir -p "$DEPLOY"
@@ -60,6 +80,7 @@ mkdir -p "$DEPLOY"
   echo "region=$REGION"
   echo "project_tag=$(tofu output -raw project_tag)"
   echo "agent_image=$REPO:$TAG"
+  echo "model=${MODEL:-scripted stand-in}"
   echo "agent_runtime_id=$(tofu output -raw agent_runtime_id)"
   echo "agent_runtime_arn=$(tofu output -raw agent_runtime_arn)"
   echo
