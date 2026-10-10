@@ -2,8 +2,8 @@
 
 A LangGraph agent on Amazon Bedrock AgentCore Runtime, traced into Apache SkyWalking
 AI Sessionizer (asz) with four `LANGSMITH_*` environment variables and no tracing code.
-Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-agentcore/
-(source in `~/github/skywalking-website/content/blog/2026-10-09-ai-sessionizer-agentcore/`).
+Companion code for https://skywalking.apache.org/blog/2026-10-10-ai-sessionizer-agentcore/
+(source in `~/github/skywalking-website/content/blog/2026-10-10-ai-sessionizer-agentcore/`).
 
 ## Layout
 

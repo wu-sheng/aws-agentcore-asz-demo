@@ -5,7 +5,7 @@ end-to-end with **[Apache SkyWalking AI Sessionizer (asz)](https://github.com/ap
 no code changes to the agent, no LangSmith SaaS account.
 
 This repo is the companion code for the
-[Apache SkyWalking blog post](https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-agentcore/)
+[Apache SkyWalking blog post](https://skywalking.apache.org/blog/2026-10-10-ai-sessionizer-agentcore/)
 on running a LangGraph agent on AgentCore with AI Sessionizer. Everything
 deploy-specific (region, account, image tags, endpoints) is a parameter — clone,
 fill in `terraform.tfvars`, run.
