@@ -93,7 +93,8 @@ where asz stores/exports:
 │   ├── pyproject.toml       # local dev install (bootstrap.sh)
 │   └── .env.example         # the 4 LANGSMITH_* env vars for Tier 1
 ├── config/
-│   └── asz-local.yaml       # Tier-1 asz config: langsmith-ingest receiver on :1985
+│   ├── asz-local.yaml       # Tier-1 asz config: receiver on :1985 + the changes adapter
+│   └── asz-changes-settings.yaml  # which tools asz-changes watches (both tiers)
 ├── infra/terraform/         # OpenTofu: the WHOLE Tier-2 environment, agent included
 │   ├── main.tf              # VPC, ECR, asz on ECS/Fargate + EFS + 2 ALBs, AgentCore runtime
 │   ├── variables.tf         # ALL deploy params live here
@@ -103,6 +104,7 @@ where asz stores/exports:
 ├── scripts/
 │   ├── bootstrap.sh         # check local toolchain + create venv
 │   ├── run-asz-local.sh     # Tier 1: asz in docker (UI :8787, ingest :1985)
+│   ├── run-agent-local.sh   # Tier 1: the agent's image, with file-change recording
 │   ├── up.sh                # Tier 2: ECR -> push arm64 image -> apply everything
 │   ├── invoke.sh            # Tier 2: play the demo conversation on AgentCore
 │   └── down.sh              # Tier 2: destroy everything; `down.sh check` shows progress
@@ -114,13 +116,23 @@ where asz stores/exports:
 
 ## The demo conversation
 
-The agent is a small LangGraph "deployment advisor" with three tools
-(`search_docs`, `check_deployment`, `estimate_cost`). The demo plays the
+The agent is a small LangGraph "deployment advisor". Three tools look facts up
+(`search_docs`, `check_deployment`, `estimate_cost`), and three work on a clone of
+this repository (`clone_demo_repo`, `read_file`, `write_file`). The demo plays the
 conversation a developer actually has while setting this up: can asz be a
-sidecar, why nothing landed on port 8787, whether OTLP is enough for replay, and
-what the PoC costs and how to tear it down. Each turn makes real tool calls, and
-all four turns are one thread, so asz shows one conversation with four rounds,
-LLM calls and tool calls.
+sidecar, why nothing landed on port 8787, whether OTLP is enough for replay, what
+the PoC costs and how to tear it down, and finally "clone the repo and prepare my
+`terraform.tfvars`". All five turns are one thread, so asz shows one conversation
+with five rounds, their model calls and tool calls.
+
+The last turn changes a file. The agent image carries `asz-changes` and the
+LangChain shim from the pinned asz commit; the shim runs `asz-changes` around
+`write_file` (the only tool `config/asz-changes-settings.yaml` names), which
+scans the workspace before and after and records the difference. asz's `changes`
+adapter files it beside that tool call. On AgentCore the clone lives on the
+session's microVM and goes with it; the record lives in asz. The recorder writes
+to an EFS access point the runtime mounts at `/mnt/changes`, and asz reads the
+same directory.
 
 With no `BEDROCK_MODEL_ID` a scripted stand-in model makes the same tool calls,
 so Tier 1 needs no credential. Set it to use a real Bedrock model.
@@ -137,6 +149,9 @@ so Tier 1 needs no credential. Set it to use a real Bedrock model.
 cd agent && set -a && . ./.env.example && set +a
 .venv/bin/python app.py --local --demo --thread-id advisor-demo-001
 # within ~10s: http://127.0.0.1:8787 shows ls-aws-agentcore-asz-demo-advisor-demo-001-...
+
+# or the agent's own image, recording what write_file changes, as on AgentCore:
+./scripts/run-agent-local.sh
 ```
 
 ### Tier 2 — real AWS

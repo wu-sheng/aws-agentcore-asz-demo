@@ -1,6 +1,6 @@
 ---
 name: verify-run
-description: Verify a deployed Tier-2 environment end to end and capture evidence - the four-turn demo on one AgentCore session, the turn after the session went idle, token counts, and readable screenshots of the asz replay page. Use after tier2-up, for a PR's "Tested" section or for the blog post's figures.
+description: Verify a deployed Tier-2 environment end to end and capture evidence - the five-turn demo on one AgentCore session, the file change recorded from the microVM, the turn after the session went idle, token counts, and readable screenshots of the asz replay page. Use after tier2-up, for a PR's "Tested" section or for the blog post's figures.
 ---
 
 # Verify a Tier-2 run
@@ -24,7 +24,9 @@ Within ~30 s (the Tier-2 collector interval):
 ```bash
 curl -s "$UI/api/conversations" | python3 -m json.tool | grep -E '"id"|"talks"|"llm_calls"'
 ```
-Expect one `ls-aws-agentcore-asz-demo-advisor-...` conversation with 4 talks. Its name holds only a
+Expect one `ls-aws-agentcore-asz-demo-advisor-...` conversation with 5 talks and `changes` 1
+(turn 5's `write_file` created `infra/terraform/terraform.tfvars` in the microVM's clone). A
+5th answer of HTTP 424 means the EFS mount failed (security group, IAM, or access point). Its name holds only a
 shortened session id; match it by the session's timestamp prefix and keep the full id: `CONV=ls-...`.
 
 ## 2. The turn after the session went idle
@@ -34,11 +36,12 @@ call. Any call resets the clock, so do not invoke on this session while waiting.
 16 minutes:
 
 ```bash
-SESSION=$SESSION ./scripts/invoke.sh "Before we finish: what was the first thing I asked you, and what did you answer?" | tee $RUN/invoke-idle.log
+SESSION=$SESSION ./scripts/invoke.sh "Earlier in this session you changed a file in my repository. Which file was it, and what did you change?" | tee $RUN/invoke-idle.log
 ```
-Expected: the agent says it has no record of earlier questions, because the new microVM's
-`InMemorySaver` is empty. asz files the call under the same conversation (5 talks), and that
-talk's model call is sent only the system prompt and the new question. A turn sent sooner, on the
+Expected: the agent has no record of it. The new microVM's `InMemorySaver` is empty, and its
+clone of the repository is gone with the old microVM. asz files the call under the same
+conversation (6 talks); that talk's model call is sent only the system prompt and the new
+question, while talk 5 still shows the change. A turn sent sooner, on the
 same session, would instead see the whole history: run both if the comparison is needed.
 
 ## 3. Screenshots and the API documents
@@ -47,7 +50,7 @@ same session, would instead see the whole history: run both if the comparison is
 # once: Playwright in the git-ignored .deploy/pw
 [ -d .deploy/pw/node_modules/playwright ] || npm install --prefix .deploy/pw playwright
 NODE_PATH=.deploy/pw/node_modules PW_EXE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  node .claude/skills/verify-run/shoot.cjs "$UI" "$CONV" $RUN/shots --prompt-talk 2 --idle-talk 5
+  node .claude/skills/verify-run/shoot.cjs "$UI" "$CONV" $RUN/shots --prompt-talk 2 --change-talk 5 --idle-talk 6
 ```
 Without `PW_EXE`, run `npx --prefix .deploy/pw playwright install chromium` first. The UI is
 reachable only from `asz_ui_cidrs`.
@@ -55,12 +58,15 @@ reachable only from `asz_ui_cidrs`.
 Output (1280 px viewport, 2x scale, so UI text stays readable in an ~800 px blog column):
 `list.png`, `conversation.png` (every talk), `turn.png` (talk 2 expanded: model calls and tool
 steps with input and result), `prompt.png` (Prompt tab of talk 2's last model call, popped out,
-all messages open), `idle-prompt.png` (talk 5's first model call), and `api/*.json`.
+all messages open), `change.png` (talk 5's `write_file` step, Changes tab, the diff open),
+`idle-prompt.png` (talk 6's first model call), and `api/*.json`.
 
 Check by reading the images, not just their existence:
 - `prompt.png` lists, in order: SYSTEM, the first HUMAN question, its tool use and result, the
   first answer, the second HUMAN question, its tool calls and results. The first turn ran in a
   different invocation; seeing it proves the session carried the history.
+- `change.png` shows CREATE `aws-agentcore-asz-demo/infra/terraform/terraform.tfvars`, observed by
+  the asz plugin, with the new IP and `agent_idle_session_timeout = 300` in the diff.
 - `idle-prompt.png` lists SYSTEM and one HUMAN message only.
 
 Token counts and model calls from the saved view document:
@@ -96,7 +102,8 @@ environment bills while it is up.
 ## Maintaining shoot.cjs
 
 It drives asz's conversation page by these selectors, checked against asz `8104ada`:
-`.acv-transcript`, `.acv-inspector`, `.acv-tab` ("Prompt"), `.acv-pop-btn` (pop the inspector
+`.acv-transcript`, `.acv-inspector`, `.acv-tab` ("Prompt", "Changes"), `.acv-change-file-row`
+(a changed file; `aria-expanded` opens its diff), `.acv-pop-btn` (pop the inspector
 out), `.acv-title.acv-kind-model` (model-call steps), `.acv-card.acv-human` / `.acv-card.acv-agent`,
 `.acv-fold` and the text "show what the agent did". After an asz bump, run it against Tier 1
 (`http://127.0.0.1:8787`) and read the images before relying on it.

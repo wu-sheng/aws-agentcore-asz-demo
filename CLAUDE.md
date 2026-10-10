@@ -7,12 +7,16 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
 
 ## Layout
 
-- `agent/app.py` — the agent: a "deployment advisor" graph with three tools (`search_docs`,
-  `check_deployment`, `estimate_cost`), `InMemorySaver`, and the AgentCore entrypoint. With no
+- `agent/app.py` — the agent: a "deployment advisor" graph with lookup tools (`search_docs`,
+  `check_deployment`, `estimate_cost`) and workspace tools (`clone_demo_repo`, `read_file`,
+  `write_file` on a clone of this repo), `InMemorySaver`, and the AgentCore entrypoint. With no
   `BEDROCK_MODEL_ID` it runs a scripted stand-in model, so Tier 1 needs no credentials.
-  `DEMO_TURNS` is the four-question demo; `scripts/invoke.sh` repeats the same four.
-- `agent/Dockerfile` — `linux/arm64` image (AgentCore requires arm64, pulled from ECR).
-- `config/asz-local.yaml` — Tier-1 asz config: only the `langsmith-ingest` receiver.
+  `DEMO_TURNS` is the five-question demo; `scripts/invoke.sh` repeats the same five (keep them equal).
+- `agent/Dockerfile` — `linux/arm64` image (AgentCore requires arm64, pulled from ECR). A Go stage
+  builds `asz-changes` from asz source at `ASZ_COMMIT`; the image also installs the LangChain shim
+  from the same commit (`asz-langchain enable`) and `git`.
+- `config/asz-local.yaml` — Tier-1 asz config: the `langsmith-ingest` receiver and the `changes` adapter.
+- `config/asz-changes-settings.yaml` — which tools `asz-changes` watches (`write_file`), both tiers.
 - `infra/terraform/` — OpenTofu for the whole Tier-2 environment, the AgentCore runtime
   included. Every deploy-specific value is a variable (`variables.tf`); the operator's values
   live in `terraform.tfvars` (git-ignored; copy from `terraform.tfvars.example`).
@@ -23,8 +27,9 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
 
 ## Two tiers
 
-- **Tier 1, local, no AWS:** asz in Docker (UI `127.0.0.1:8787`, receiver `127.0.0.1:1985`),
-  the agent in a venv. Skill: `tier1-local`.
+- **Tier 1, local, no AWS:** asz in Docker (UI `127.0.0.1:8787`, receiver `127.0.0.1:1985`), and
+  the agent either in a venv (no file-change recording) or in its own image via
+  `scripts/run-agent-local.sh` (recording on, as on AgentCore). Skill: `tier1-local`.
 - **Tier 2, real AWS:** VPC, NAT, two ALBs (internal :1985 for the receiver, public :8787 for the
   UI, restricted to `asz_ui_cidrs`), asz on ECS Fargate with EFS, S3 gateway endpoint, and the
   agent on AgentCore Runtime in VPC mode. Skills: `tier2-up`, `verify-run`, `tier2-down`.
@@ -34,9 +39,15 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
 - The receiver is port **1985**; **8787** is the replay page. The receiver is off by default and
   its default address is `127.0.0.1:1985`, so in a container it must listen on `0.0.0.0`.
   The collector interval is set to 30s (Tier 2) / 10s (Tier 1); asz's default is 10 minutes.
-- asz is pinned by **upstream commit id**, not a release tag, in two places that must agree:
-  `scripts/run-asz-local.sh` (`ASZ_IMAGE`) and `var.asz_image`. `:latest` is the last release
-  and lags `main`. Skill: `bump-asz`.
+- asz is pinned by **upstream commit id**, not a release tag, in places that must agree:
+  `scripts/run-asz-local.sh` (`ASZ_IMAGE`), `var.asz_image`, and the `ASZ_COMMIT` default in
+  `agent/Dockerfile` (`up.sh` and `run-agent-local.sh` pass the pinned commit as a build arg).
+  `:latest` is the last release and lags `main`. Skill: `bump-asz`.
+- File changes reach asz only through a shared directory: on AWS an EFS access point
+  (`aws_efs_access_point.changes`, uid 65532) that the runtime mounts at `/mnt/changes` and asz
+  at `/asz/changes`; locally the `asz-local-changes` volume. A failed mount makes every
+  AgentCore invocation return HTTP 424. The recorder ignores `.gitignore`; it skips only
+  directories such as `.git`, `.terraform`, `.venv`.
 - The default model is `us.anthropic.claude-opus-4-7`. Any Anthropic model needs the account's
   one-time Anthropic use-case form (Bedrock console, Model access); without it every AgentCore
   invocation returns `RuntimeClientError (500)`. A direct `aws bedrock-runtime converse` names it.

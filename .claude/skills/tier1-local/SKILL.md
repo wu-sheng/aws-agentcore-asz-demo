@@ -26,11 +26,20 @@ description: Run the demo locally with no AWS - asz in Docker, the LangGraph age
    ```
    Expect `ls-aws-agentcore-asz-demo-<thread-id>-<digest>` with 4 talks and 8 model calls
    (stand-in model; a real model may make a different number of calls).
-5. Screenshots or a closer look: the `verify-run` skill's `shoot.cjs` works against
-   `http://127.0.0.1:8787` too.
+5. With file-change recording, as on AgentCore - run the agent's image instead of the venv:
+   ```bash
+   ./scripts/run-agent-local.sh          # builds the image, five turns on a fresh thread
+   ```
+   It runs as uid 65532 on the `asz-demo` network, clones into the container, and writes the
+   recorder's output to the `asz-local-changes` volume that asz-local reads (`changes` adapter).
+   Expect the conversation's `changes` to be 1 (+28 lines, the new `terraform.tfvars`) in
+   `/api/conversations`, and the diff on turn 5's `write_file` step (inspector, Changes tab).
+   Docker Hub can answer with EOF for a while; the script fails then, and a retry later works.
+6. Screenshots or a closer look: the `verify-run` skill's `shoot.cjs` works against
+   `http://127.0.0.1:8787` too (`--change-talk 5`).
 
 The agent image can also be checked without AgentCore: build it (`docker buildx build --platform
 linux/arm64 -t asz-demo-agent:test --load agent`) and POST to its `/invocations` on 8080 with an
 `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id` header; the header's value becomes the thread.
 
-Stop: `docker rm -f asz-local`.
+Stop: `docker rm -f asz-local` (volumes `asz-local-data` and `asz-local-changes` stay).

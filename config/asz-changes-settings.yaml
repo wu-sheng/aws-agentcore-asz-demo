@@ -1,0 +1,12 @@
+# asz-changes settings: which of the agent's tools change files.
+#
+# The recorder scans the watched workspace (ASZ_WATCH) before and after each
+# tool named here and records the difference; asz's `changes` adapter files it
+# beside that tool call. Nothing is watched until a tool is named, because asz
+# cannot tell from a name which tools write. clone_demo_repo writes too, but a
+# whole repository appearing is not the change worth showing, so it is left out.
+#
+# Tier 1: scripts/run-asz-local.sh copies this into the shared changes volume.
+# Tier 2: the asz task's init container writes it onto EFS (/asz/changes).
+tools:
+  scope: [write_file]

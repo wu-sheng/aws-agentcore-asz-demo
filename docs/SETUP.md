@@ -24,7 +24,7 @@ cd agent && set -a && . ./.env.example && set +a
 ```
 
 Within ~10s, http://127.0.0.1:8787 lists
-`ls-aws-agentcore-asz-demo-advisor-demo-001-…`: four rounds, each with its LLM
+`ls-aws-agentcore-asz-demo-advisor-demo-001-…`: five rounds, each with its LLM
 calls and tool calls. From the CLI:
 
 ```bash
@@ -35,12 +35,21 @@ docker exec asz-local /usr/local/bin/asz verify
 Real model instead of the stand-in: set `BEDROCK_MODEL_ID` (and a Bedrock API key
 in `AWS_BEARER_TOKEN_BEDROCK`, or its alias `AWS_BEDROCKS_API`, or AWS credentials).
 
+With file-change recording, as on AgentCore: run the agent's own image instead of
+the venv. It builds `asz-changes` and the LangChain shim in, writes what
+`write_file` changed to the `asz-local-changes` volume, and asz shows the diff on
+that tool step:
+
+```bash
+./scripts/run-agent-local.sh      # builds the image, plays the five turns on a fresh thread
+```
+
 Things that bite: the receiver is **1985**, not the UI's 8787; asz only runs it
 when `langsmith-ingest` is enabled (`config/asz-local.yaml`); the published image
 is on **GHCR**, not Docker Hub.
 
-Stop: `docker rm -f asz-local` (data stays in volume `asz-local-data`;
-`docker volume rm asz-local-data` wipes it).
+Stop: `docker rm -f asz-local` (data stays in volumes `asz-local-data` and
+`asz-local-changes`; `docker volume rm` wipes them).
 
 ---
 
@@ -95,6 +104,13 @@ everything else with that tag.
   conversation, where its prompt shows exactly that.
 - asz runs one task (one writer to its storage root). The image is distroless, so
   a one-shot init container writes its `asz.yaml`.
+- File changes: the agent image carries `asz-changes` and the LangChain shim,
+  built from the asz commit `var.asz_image` names (`up.sh` passes it). The runtime
+  mounts an EFS access point at `/mnt/changes` (uid 65532, IAM-authenticated, NFS
+  from the agent's security group); `asz-changes` writes there what `write_file`
+  changed in `/home/agent/workspace`, and asz reads the same directory at
+  `/asz/changes`. The init container writes `config/asz-changes-settings.yaml`
+  there. If that mount fails, AgentCore fails every invocation with HTTP 424.
 
 Every resource is in OpenTofu state and tagged `Project=<project_name>`.
 `up.sh` writes the list to `.deploy/resources.txt`. AWS itself creates two

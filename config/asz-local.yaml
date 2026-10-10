@@ -19,3 +19,13 @@ adapters:
       mode: watch
       # Short interval so a demo run shows up in the UI within seconds.
       interval: 10s
+
+  # What the agent's tools changed on disk. asz-changes, run by the LangChain
+  # shim inside the agent container, writes its records to the shared
+  # asz-local-changes volume; this adapter reads them there.
+  - name: changes
+    enabled: true
+    source_root: /asz/changes
+    collector:
+      mode: watch
+      interval: 10s
