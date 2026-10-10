@@ -86,7 +86,13 @@ everything else with that tag.
   receiver through an **internal** load balancer that only its security group may
   call, and sends the generated token as `LANGSMITH_API_KEY`.
 - Each AgentCore runtime session is one asz conversation: the agent uses the
-  session id as its thread. `invoke.sh` sends all turns on one session.
+  session id as its thread. `invoke.sh` sends all turns on one session, and
+  `SESSION=<id> ./scripts/invoke.sh "question"` adds a turn to an earlier one.
+- The graph's history is in memory, so it lasts as long as the session's
+  microVM. AgentCore stops an idle session after 15 minutes by default
+  (`agent_idle_session_timeout` changes it); a later turn on the same session id
+  runs in a fresh microVM with no history, and asz files it in the same
+  conversation, where its prompt shows exactly that.
 - asz runs one task (one writer to its storage root). The image is distroless, so
   a one-shot init container writes its `asz.yaml`.
 
@@ -102,21 +108,38 @@ things outside state:
 ### 3.4 Cost
 
 Fixed while up, us-east-1: NAT gateway ~$0.045/h, two ALBs ~$0.045/h, Fargate
-0.5 vCPU / 1 GB arm64 ~$0.02/h, plus NAT data, EFS and logs at cents. About
-**$0.11/hour**, ~$2.70/day. AgentCore bills per active session; Bedrock per token.
+0.5 vCPU / 1 GB arm64 ~$0.02/h, three public IPv4 addresses (the NAT's EIP and the
+public ALB in two AZs) ~$0.015/h. About **$0.125/hour**, ~$3/day. On top: ALB
+LCUs, NAT data, EFS, ECR and logs (cents at demo volume), AgentCore for the CPU
+and memory its sessions use, and Bedrock per token.
 
 ### 3.5 Teardown
 
 ```bash
 ./scripts/down.sh          # asks you to type the project name; --yes skips
+./scripts/down.sh check    # read-only: what is removed, what is still in progress
 ```
 
-1. `tofu destroy` (retries: AgentCore and Fargate release ENIs asynchronously, so
-   a subnet or security group can refuse deletion for a few minutes).
-2. Deletes the runtime's log groups.
-3. Verifies: state is empty, nothing tagged `Project=<project>` remains, no
-   AgentCore runtime of ours remains. Exits non-zero and keeps the manifest if
-   anything is left. The tagging index lags a few minutes; re-run to re-check.
+`down.sh` requests deletion of everything, then waits up to 10 minutes
+(`--wait <seconds>` changes it) for it to finish:
+
+1. `tofu destroy`, repeated every minute while anything is left in state.
+2. Deletes the runtime's log groups, which AWS creates outside state.
+3. Prints a status report: every resource from `.deploy/resources.txt` that is
+   gone ("ok"), and everything still in progress ("wip"), each marked as free or
+   billable. Exit 0 means finished and nothing left; exit 3 means still in progress.
+
+Expect exit 3. AWS keeps AgentCore's network interfaces in the agent's subnets
+for [up to 8 hours](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html)
+after the runtime is deleted; in our run it took about 10. You cannot delete
+them yourself. Until they go, the VPC, its two private subnets and the agent
+security group stay. They cost nothing; everything that bills is gone within
+the first pass. Later, run `./scripts/down.sh check` to see where it stands,
+and `./scripts/down.sh --yes` to finish (it is safe to re-run).
+
+"Finished" is decided by OpenTofu state, the AgentCore runtime list, the log
+groups and the IAM roles. The tagging index is shown only as a note: it lags
+deletions, and keeps INACTIVE ECS clusters and task definitions for a while.
 
 This deletes asz's stored conversations (EFS) and the agent images (ECR).
 

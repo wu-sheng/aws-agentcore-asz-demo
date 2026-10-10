@@ -123,8 +123,8 @@ def check_deployment(component: str) -> str:
 _HOURLY = {
     "nat_gateway": 0.045,
     "alb_x2": 2 * 0.0225,
-    "fargate_asz_0.5vcpu_1gb": 0.5 * 0.04048 + 1 * 0.004445,
-    "agentcore_runtime_idle": 0.0,
+    "fargate_asz_arm64_0.5vcpu_1gb": 0.5 * 0.03238 + 1 * 0.00356,
+    "public_ipv4_x3": 3 * 0.005,  # the NAT's EIP and the public ALB in two AZs
 }
 
 
@@ -135,8 +135,8 @@ def estimate_cost(hours: float) -> str:
     total = sum(_HOURLY.values()) * hours
     return (
         f"{hours:g}h -> about ${total:.2f} fixed ({'; '.join(lines)}). AgentCore bills "
-        "per active session CPU/memory and Bedrock per token on top; EFS and logs "
-        "are cents at demo volume."
+        "for the CPU and memory its sessions use, and Bedrock per token, on top; "
+        "ALB, NAT data, EFS and logs are cents at demo volume."
     )
 
 

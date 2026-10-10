@@ -4,8 +4,9 @@ Run a **LangGraph** agent on **Amazon Bedrock AgentCore Runtime**, and observe i
 end-to-end with **[Apache SkyWalking AI Sessionizer (asz)](https://github.com/apache/skywalking-ai-sessionizer)** —
 no code changes to the agent, no LangSmith SaaS account.
 
-This repo is the companion code for the blog post *"AgentCore is just the box:
-running LangGraph in production with full-fidelity observability."* Everything
+This repo is the companion code for the
+[Apache SkyWalking blog post](https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-agentcore/)
+on running a LangGraph agent on AgentCore with AI Sessionizer. Everything
 deploy-specific (region, account, image tags, endpoints) is a parameter — clone,
 fill in `terraform.tfvars`, run.
 
@@ -104,7 +105,7 @@ where asz stores/exports:
 │   ├── run-asz-local.sh     # Tier 1: asz in docker (UI :8787, ingest :1985)
 │   ├── up.sh                # Tier 2: ECR -> push arm64 image -> apply everything
 │   ├── invoke.sh            # Tier 2: play the demo conversation on AgentCore
-│   └── down.sh              # Tier 2: destroy everything, then verify nothing is left
+│   └── down.sh              # Tier 2: destroy everything; `down.sh check` shows progress
 └── docs/
     └── SETUP.md             # prerequisites + Tier-1 / Tier-2 walkthrough
 ```
@@ -144,7 +145,7 @@ cd agent && set -a && . ./.env.example && set +a
 cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars   # set asz_ui_cidrs
 ./scripts/up.sh       # ~10 min; everything is created by OpenTofu
 ./scripts/invoke.sh   # the demo conversation, on AgentCore, lands in the remote asz
-./scripts/down.sh     # destroy everything and verify nothing is left
+./scripts/down.sh     # destroy everything (VPC can take hours: ./scripts/down.sh check)
 ```
 
 See [`docs/SETUP.md`](docs/SETUP.md) for prerequisites, what gets created, and costs.
@@ -161,8 +162,14 @@ See [`docs/SETUP.md`](docs/SETUP.md) for prerequisites, what gets created, and c
   `main`. To move forward, set the full id of a newer `main` commit (CI publishes
   `ghcr.io/apache/skywalking-ai-sessionizer:<commit-id>`) in
   `scripts/run-asz-local.sh` and `var.asz_image`.
-- Tier 2 passes `tofu validate` (AWS provider 6.x) but has not been applied in a
-  real account yet.
+- Tier 2 was applied, exercised and torn down in `us-east-1` (OpenTofu, AWS
+  provider 6.68) with `up.sh`, `invoke.sh` and `down.sh`.
+- The agent keeps its graph history in memory (`InMemorySaver`). That history
+  lives as long as the session's microVM: AgentCore stops it after 15 idle
+  minutes by default (`agent_idle_session_timeout`), and a later call on the
+  same session id starts with none. asz still files that call under the same
+  conversation, so the replay shows the model was sent no history. Use a
+  durable checkpointer for anything real.
 - The receiver token is passed to the asz task as a plain task-definition
   environment value. Fine for a throwaway PoC; use Secrets Manager otherwise.
 - `terraform.tfvars`, state files, `.deploy/` and `.env` are git-ignored.

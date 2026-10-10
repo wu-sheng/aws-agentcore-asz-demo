@@ -5,6 +5,8 @@
 # conversation (the agent uses the session id as its thread).
 #   ./scripts/invoke.sh                 the four-turn demo conversation
 #   ./scripts/invoke.sh "question"      one turn on a fresh session
+#   SESSION=<id> ./scripts/invoke.sh "question"
+#                                       one more turn on an earlier session
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,10 +15,13 @@ cd "$ROOT/infra/terraform"
 ARN="$(tofu output -raw agent_runtime_arn)"
 [ -n "$ARN" ] || { echo "No agent runtime yet -- run ./scripts/up.sh first." >&2; exit 1; }
 REGION="$(tofu console <<<'var.aws_region' | tr -d '"')"
+# Use the tfvars profile for the AWS CLI too, so tofu and aws act as one identity.
+PROFILE="$(tofu console <<<'var.aws_profile == null ? "" : var.aws_profile' | tr -d '"')"
+[ -z "$PROFILE" ] || export AWS_PROFILE="$PROFILE"
 UI="$(tofu output -raw asz_ui_url)"
 
 # AgentCore requires a session id of at least 33 characters.
-SESSION="advisor-$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 10)"
+SESSION="${SESSION:-advisor-$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 10)}"
 
 if [ $# -gt 0 ]; then
   TURNS=("$@")
@@ -49,4 +54,5 @@ done
 
 echo
 echo "session/thread: $SESSION"
-echo "Within ~30s it is in asz as ls-<project>-$SESSION-...  ->  $UI"
+echo "Within ~30s it is in asz as ls-<project>-<session prefix>-<digest>  ->  $UI"
+echo "One more turn on this session: SESSION=$SESSION ./scripts/invoke.sh \"question\""
