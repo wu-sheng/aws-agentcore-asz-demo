@@ -66,7 +66,7 @@ variable "asz_ui_cidrs" {
 variable "asz_image" {
   description = "asz container image (multi-arch, distroless, non-root uid 65532)."
   type        = string
-  default     = "ghcr.io/apache/skywalking-ai-sessionizer:latest"
+  default     = "ghcr.io/apache/skywalking-ai-sessionizer:8104ada77cbd0d5ca69754d50cbbc0cd6f9bbec5"
 }
 
 variable "asz_cpu" {
