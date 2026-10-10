@@ -598,6 +598,16 @@ resource "aws_iam_role_policy" "agent" {
         }
       },
       {
+        # CreateAgentRuntime refuses a role without these, though the AgentCore
+        # file-system guide lists only ClientMount and ClientWrite. Its check
+        # evaluates them without a resource, so a policy scoped to the file
+        # system and access point is refused; both only read metadata.
+        Sid      = "DescribeChangesMount"
+        Effect   = "Allow"
+        Action   = ["elasticfilesystem:DescribeAccessPoints", "elasticfilesystem:DescribeMountTargets"]
+        Resource = "*"
+      },
+      {
         Sid      = "InvokeModel"
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Converse", "bedrock:ConverseStream"]

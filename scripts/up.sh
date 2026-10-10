@@ -85,7 +85,14 @@ echo "== 2/4 agent image, copied into ECR =="
 TAG="${IMAGE_TAG:-$(date -u +%Y%m%d-%H%M%S)}"
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPO%%/*}" >/dev/null
 docker tag "$AGENT_IMAGE" "$REPO:$TAG"
-docker push -q "$REPO:$TAG" >/dev/null
+# A push through a proxy can time out mid-layer; a retry skips the layers
+# already uploaded.
+for attempt in 1 2 3; do
+  docker push -q "$REPO:$TAG" >/dev/null && break
+  [ "$attempt" != 3 ] || { echo "  docker push failed 3 times" >&2; exit 1; }
+  echo "  push failed (attempt $attempt/3), retrying" >&2
+  sleep 10
+done
 echo "  pushed $REPO:$TAG"
 
 echo "== 3/4 environment (takes ~10 min: NAT, EFS, load balancers, AgentCore) =="

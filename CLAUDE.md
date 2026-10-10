@@ -52,7 +52,11 @@ Companion code for https://skywalking.apache.org/blog/2026-10-09-ai-sessionizer-
 - File changes reach asz only through a shared directory: on AWS an EFS access point
   (`aws_efs_access_point.changes`, uid 65532) that the runtime mounts at `/mnt/changes` and asz
   at `/asz/changes`; locally the `asz-local-changes` volume. A failed mount makes every
-  AgentCore invocation return HTTP 424. The recorder ignores `.gitignore`; it skips only
+  AgentCore invocation return HTTP 424. The execution role also needs
+  `elasticfilesystem:DescribeAccessPoints` and `DescribeMountTargets` on `*`: `CreateAgentRuntime`
+  checks them without a resource and refuses a role scoped to the file system ("Execution role is
+  missing required filesystem permissions"), though AWS's file-system guide lists only
+  `ClientMount`/`ClientWrite`. The recorder ignores `.gitignore`; it skips only
   directories such as `.git`, `.terraform`, `.venv`.
 - The recorder keeps one baseline per watched path in that shared directory, so every
   conversation works in its own `DEMO_WORKSPACE/<thread>` and `ask()` sets `ASZ_WATCH` to it
