@@ -159,14 +159,28 @@ def estimate_cost(hours: float) -> str:
 # session's microVM is stopped. asz-changes (see the Dockerfile) watches it: it
 # scans before and after write_file and records the difference beside the call.
 REPO_URL = os.getenv("DEMO_REPO_URL", "https://github.com/wu-sheng/aws-agentcore-asz-demo")
-WORKSPACE = Path(os.getenv("DEMO_WORKSPACE") or Path.home() / "workspace")
-REPO_DIR = WORKSPACE / "aws-agentcore-asz-demo"
+WORKSPACE_ROOT = Path(os.getenv("DEMO_WORKSPACE") or Path.home() / "workspace")
 _NOT_CLONED = "The repository is not cloned in this workspace; call clone_demo_repo first."
+
+# Each conversation works in a directory of its own, WORKSPACE_ROOT/<thread>.
+# asz-changes keeps one baseline per watched path in its data directory, and
+# every session shares that directory (EFS on AWS), so one path for all of
+# them would compare a session's workspace with another session's last state.
+# ask() points the tools and ASZ_WATCH here before each turn.
+_workspace = {"dir": WORKSPACE_ROOT}
+
+
+def _workspace_for(thread_id: str) -> Path:
+    return WORKSPACE_ROOT / (re.sub(r"[^A-Za-z0-9._-]", "_", thread_id)[:100] or "default")
+
+
+def _repo_dir() -> Path:
+    return _workspace["dir"] / "aws-agentcore-asz-demo"
 
 
 def _in_repo(path: str) -> Path:
     """The file a repository path names, refusing anything outside the clone."""
-    root = REPO_DIR.resolve()
+    root = _repo_dir().resolve()
     target = (root / path).resolve()
     if target != root and root not in target.parents:
         raise ValueError("outside the repository")
@@ -177,23 +191,24 @@ def _in_repo(path: str) -> Path:
 def clone_demo_repo() -> str:
     """Clone the demo repository, wu-sheng/aws-agentcore-asz-demo, into the
     workspace unless it is already there, and list its top-level entries."""
-    if not (REPO_DIR / ".git").is_dir():
-        WORKSPACE.mkdir(parents=True, exist_ok=True)
+    repo = _repo_dir()
+    if not (repo / ".git").is_dir():
+        repo.parent.mkdir(parents=True, exist_ok=True)
         done = subprocess.run(
-            ["git", "clone", "--depth", "1", "--quiet", REPO_URL, str(REPO_DIR)],
+            ["git", "clone", "--depth", "1", "--quiet", REPO_URL, str(repo)],
             capture_output=True, text=True, timeout=120,
         )
         if done.returncode != 0:
             return f"git clone failed: {done.stderr.strip()[-300:]}"
-    entries = sorted(e.name + ("/" if e.is_dir() else "") for e in REPO_DIR.iterdir() if e.name != ".git")
-    return f"{REPO_URL} is cloned at {REPO_DIR}: {', '.join(entries)}"
+    entries = sorted(e.name + ("/" if e.is_dir() else "") for e in repo.iterdir() if e.name != ".git")
+    return f"{REPO_URL} is cloned at {repo}: {', '.join(entries)}"
 
 
 @tool
 def read_file(path: str) -> str:
     """Read a file of the cloned demo repository, by its path in the repository,
     e.g. infra/terraform/terraform.tfvars.example."""
-    if not REPO_DIR.is_dir():
+    if not _repo_dir().is_dir():
         return _NOT_CLONED
     try:
         return _in_repo(path).read_text()[:20000]
@@ -205,7 +220,7 @@ def read_file(path: str) -> str:
 def write_file(path: str, content: str) -> str:
     """Write a file of the cloned demo repository, by its path in the repository,
     creating it or replacing its whole content."""
-    if not REPO_DIR.is_dir():
+    if not _repo_dir().is_dir():
         return _NOT_CLONED
     try:
         target = _in_repo(path)
@@ -342,6 +357,12 @@ def ask(question: str, thread_id: str) -> str:
     """One turn on a conversation. asz never infers the conversation identity,
     so the thread key is supplied both as LangGraph's checkpoint thread and as
     run metadata."""
+    _workspace["dir"] = _workspace_for(thread_id)
+    _workspace["dir"].mkdir(parents=True, exist_ok=True)
+    if os.environ.get("ASZ_CHANGES"):
+        # The shim reads ASZ_WATCH when LangChain creates its handler, at the
+        # start of this invocation.
+        os.environ["ASZ_WATCH"] = str(_workspace["dir"])
     result = GRAPH.invoke(
         {"messages": [HumanMessage(question)]},
         config={

@@ -9,10 +9,14 @@ project_name = "aws-agentcore-asz-demo"
 # REQUIRED: who may open the asz UI. Your public IP: curl -s https://checkip.amazonaws.com
 asz_ui_cidrs = ["203.0.113.7/32"]
 
-# Real inference. Leave empty for the scripted stand-in model (no Bedrock cost).
-# Anthropic models first need the one-time Anthropic use-case form (Bedrock
-# console, Model access); until it is submitted, every turn returns 500.
-bedrock_model_id = "us.anthropic.claude-opus-4-7"
+# The agent's model. Amazon Nova Pro works in any account with no extra step.
+# Claude models need the account's one-time Anthropic use-case form (Bedrock
+# console, Model access), and AWS does not serve every newer Claude model to
+# every account; scripts/up.sh calls the model once before it builds anything
+# and stops if the account cannot use it. Empty = the scripted stand-in model
+# (no Bedrock cost). BEDROCK_MODEL_ID overrides this for one run, e.g.
+#   BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-6-v1 ./scripts/up.sh
+bedrock_model_id = "us.amazon.nova-pro-v1:0"
 
 # Only if apply fails on the agent runtime's subnets: pin AZs AgentCore supports.
 # availability_zone_ids = ["use1-az1", "use1-az2"]

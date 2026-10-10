@@ -12,8 +12,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT/infra/terraform"
 
-ARN="$(tofu output -raw agent_runtime_arn)"
-[ -n "$ARN" ] || { echo "No agent runtime yet -- run ./scripts/up.sh first." >&2; exit 1; }
+# With nothing in state, tofu prints a warning instead of the ARN and exits 0.
+ARN="$(tofu output -raw agent_runtime_arn 2>/dev/null || true)"
+[[ "$ARN" == arn:* ]] || { echo "No agent runtime yet -- run ./scripts/up.sh first." >&2; exit 1; }
 REGION="$(tofu console <<<'var.aws_region' | tr -d '"')"
 # Use the tfvars profile for the AWS CLI too, so tofu and aws act as one identity.
 PROFILE="$(tofu console <<<'var.aws_profile == null ? "" : var.aws_profile' | tr -d '"')"

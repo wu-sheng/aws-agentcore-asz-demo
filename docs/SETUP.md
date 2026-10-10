@@ -108,7 +108,8 @@ everything else with that tag.
   built from the asz commit `var.asz_image` names (`up.sh` passes it). The runtime
   mounts an EFS access point at `/mnt/changes` (uid 65532, IAM-authenticated, NFS
   from the agent's security group); `asz-changes` writes there what `write_file`
-  changed in `/home/agent/workspace`, and asz reads the same directory at
+  changed in the conversation's workspace, `/home/agent/workspace/<thread>`, and asz
+  reads the same directory at
   `/asz/changes`. The init container writes `config/asz-changes-settings.yaml`
   there. If that mount fails, AgentCore fails every invocation with HTTP 424.
 
@@ -163,10 +164,12 @@ This deletes asz's stored conversations (EFS) and the agent images (ECR).
 
 - **apply fails on the runtime's subnets**: AgentCore VPC mode supports only some
   AZs per region. Set `availability_zone_ids` to supported AZ ids and re-run `up.sh`.
-- **invoke returns 500 on every turn**: with an Anthropic model, the account has
-  not submitted the Anthropic use-case form (Bedrock console, Model access).
-  Submit it and wait ~15 min. A direct `aws bedrock-runtime converse --model-id <id> ...`
-  says so plainly.
+- **up.sh stops at "model"**, or **invoke returns 500 on every turn**: the account
+  cannot call the model. `up.sh` checks with one `converse` call and prints Bedrock's
+  reason. "Model use case details have not been submitted": submit the Anthropic
+  use-case form (Bedrock console, Model access) and wait ~15 min. "is not available
+  for this account": AWS does not serve that model to this account; ask AWS Support,
+  or pick another model, e.g. `BEDROCK_MODEL_ID=us.amazon.nova-pro-v1:0 ./scripts/up.sh`.
 - **conversation never appears**: `aws logs tail /ecs/<project>-asz --follow`
   shows asz; the agent's logs are under `/aws/bedrock-agentcore/runtimes/`.
 - **UI unreachable**: `asz_ui_cidrs` must include your current public IP.

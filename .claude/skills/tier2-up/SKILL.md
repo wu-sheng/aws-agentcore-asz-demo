@@ -17,14 +17,20 @@ docker info --format '{{.ServerVersion}}'                 # Docker running, with
 test -f infra/terraform/terraform.tfvars || echo "copy terraform.tfvars.example"
 curl -s https://checkip.amazonaws.com                      # must be inside asz_ui_cidrs in tfvars
 ```
-Model access: with an Anthropic `bedrock_model_id` (default `us.anthropic.claude-opus-4-7`),
+Model access: `up.sh` calls the model once and stops before building anything if the account
+cannot use it. The model is `bedrock_model_id` from tfvars (default `us.amazon.nova-pro-v1:0`),
+or `BEDROCK_MODEL_ID` for one run, e.g. `BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-6-v1 ./scripts/up.sh`.
+To check by hand:
 ```bash
-aws bedrock-runtime converse --region us-east-1 --model-id us.anthropic.claude-opus-4-7 \
-  --messages '[{"role":"user","content":[{"text":"Reply with OK."}]}]' --inference-config maxTokens=5
+aws bedrock-runtime converse --region us-east-1 --model-id <model> \
+  --messages '[{"role":"user","content":[{"text":"Reply with OK."}]}]' --inference-config maxTokens=8
 ```
-must answer. "Model use case details have not been submitted" means the user has to submit the
-Anthropic use-case form in the Bedrock console (Model access) and wait ~15 minutes. Do not deploy
-until it answers: every AgentCore invocation would return 500.
+- "Model use case details have not been submitted": the user submits the Anthropic use-case form
+  in the Bedrock console (Model access), then waits ~15 minutes.
+- "<model> is not available for this account": AWS does not serve that model to this account;
+  only AWS Support or the account team can change it. Pick another model.
+- Bedrock can let a Claude model's first calls through and enforce the form afterwards, so a
+  model that answered earlier may refuse later. Check again right before deploying.
 
 If `down.sh check` exits 3 because AgentCore's network interfaces still hold the old VPC, `up.sh`
 can still run: OpenTofu reuses what is in state.
