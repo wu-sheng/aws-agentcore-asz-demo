@@ -146,15 +146,9 @@ The judge identifies tasks from the user's requests, then checks whether tool re
 
 Install and sign in to Claude Code, and make sure your terminal can run `claude`. asz starts it for evaluation; conversation content it reads goes to its model service. For Codex, replace `-evaluator claude` with `-evaluator codex` in the commands below.
 
-**These commands use the newer local asz CLI with HTML reporting.** The example's cloud collector can remain on its pinned version. If the CLI installed by `bootstrap.sh` does not support `-format html`, build the local CLI from source containing that feature. Run this from `examples/pull-judge/`:
+`bootstrap.sh` now pins the local CLI to `07a2d95` (#95), the merged HTML reporting change, so the commands below work directly. The cloud experiment and recording components used `341f8c0`; existing snapshots do not need to be collected again.
 
-```sh
-ASZ_REPORT_SOURCE=/path/to/skywalking-ai-sessionizer
-ASZ_LOCAL_CLI="$PWD/.work/bin/asz"
-(cd "$ASZ_REPORT_SOURCE" && go build -o "$ASZ_LOCAL_CLI" ./cmd/asz)
-```
-
-Replace the source path, then return to `.work/cloud-TIMESTAMP/client/`. The example's `scenarios/judge-goals.yaml` organizes the seven requests into six goals: configuration, staging deployment and verification, production deployment, acceptance, autoscaling and cancellation, and the final summary. Copy it into the current directory:
+Continue in `.work/cloud-TIMESTAMP/client/`. The example's `scenarios/judge-goals.yaml` organizes the seven requests into six goals: configuration, staging deployment and verification, production deployment, acceptance, autoscaling and cancellation, and the final summary. Copy it into the current directory:
 
 ```sh
 cp ../../../scenarios/judge-goals.yaml goals.yaml
@@ -229,7 +223,7 @@ Start with staging configuration: it is marked achieved with 100. Staging deploy
 
 **Staging: deployment returned success, but verification was incomplete.** Done shows the built bundle and a successful deployment tool result with saved simulated state. Missing shows that the query ran alongside deployment, returned `not_deployed`, and was never repeated. Compare that with section 1's requirement to verify after deployment: the gap is clear.
 
-This task shows a final score of zero while retaining 40 by its criteria alone. That describes partial work followed by a contradicted delivery conclusion. It does not mean nothing happened.
+This task shows a final score of zero while retaining 40 by the achievement record. That describes partial work followed by a contradicted delivery conclusion. It does not mean nothing happened.
 
 This is a remote pull snapshot. The HTML includes saved criteria and evidence excerpts but does not embed the original conversation steps. Use `asz view` from section 3 to inspect full tool requests, responses, and file changes.
 
@@ -249,7 +243,7 @@ Use the same approach for the remaining goals:
 
 ### Fourth: Read Overall assessment and Overall result
 
-**Overall assessment** brings together scores, efficiency, and evaluation completeness. This run scored 83/100 by criteria alone and 75/100 after accounting for contradicted delivery conclusions. Efficiency was 79/100: with tokens as the unit, about 21% of reviewed cost was classified as avoidable. The 66% delivered measure describes target cost allocated to achieved targets. These measures differ; none is general model accuracy.
+**Overall assessment** brings together scores, efficiency, and evaluation completeness. This run scored 83/100 by the achievement record and 75/100 after accounting for contradicted delivery conclusions. Efficiency was 79/100: with tokens as the unit, about 21% of reviewed cost was classified as avoidable. The 66% delivered measure describes target cost allocated to achieved targets. These measures differ; none is general model accuracy.
 
 This run also reports `grouping: the judge agreed with 0 of your 6 goals; 6 merged`. The original evaluation grouped all six tasks under one release goal, while our checklist separates them. This is a grouping difference, not six failed goals.
 

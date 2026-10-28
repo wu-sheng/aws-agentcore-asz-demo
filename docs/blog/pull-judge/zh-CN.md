@@ -146,15 +146,9 @@ judge 从会话中的用户请求识别任务，检查工具结果、文件变�
 
 本机需要已安装并登录的 Claude Code，终端可以执行 `claude`。asz 会启动它进行评估；它读到的会话内容会发送给对应模型服务。使用 Codex 时，把后面命令的 `-evaluator claude` 换成 `-evaluator codex`。
 
-**以下命令使用支持 HTML 报告的新版本地 asz。** 示例的云端采集版本可以继续使用。若 `bootstrap.sh` 安装的 CLI 尚不支持 `-format html`，在 `examples/pull-judge/` 目录中，从包含该功能的 asz 源码构建本地 CLI：
+`bootstrap.sh` 已将本地 CLI 固定到合并 HTML 报告功能的 `07a2d95`（#95），可以直接使用以下命令。本次云端采集和记录组件使用 `341f8c0`；已有快照无需重新采集。
 
-```sh
-ASZ_REPORT_SOURCE=/path/to/skywalking-ai-sessionizer
-ASZ_LOCAL_CLI="$PWD/.work/bin/asz"
-(cd "$ASZ_REPORT_SOURCE" && go build -o "$ASZ_LOCAL_CLI" ./cmd/asz)
-```
-
-将源码路径替换为实际位置，然后回到 `.work/cloud-TIMESTAMP/client/`。示例的 `scenarios/judge-goals.yaml` 已把七轮请求整理成六个目标：配置、staging 发布验证、production 发布、验收、扩缩容与取消、最终总结。把它复制到当前目录：
+继续在 `.work/cloud-TIMESTAMP/client/` 中操作。示例的 `scenarios/judge-goals.yaml` 已把七轮请求整理成六个目标：配置、staging 发布验证、production 发布、验收、扩缩容与取消、最终总结。把它复制到当前目录：
 
 ```sh
 cp ../../../scenarios/judge-goals.yaml goals.yaml
@@ -229,7 +223,7 @@ asz judge -show -run 1 -format html \
 
 **staging 目标：部署返回成功，但查询验证没有完成。** 先看 Done：发布包已构建，部署工具返回成功并写入模拟状态。再看 Missing：查询与部署并行，返回 `not_deployed`，后面没有重查。对照第一节要求的“部署后查询确认”，缺口就很明确。
 
-这个任务的详情显示最终分 0，同时保留仅按完成条件得到的 40 分。它表达的是“做了一部分工作，但交付结论被反驳”，不能理解为“什么都没做”。
+这个任务的详情显示最终分 0，同时保留按完成记录得到的 40 分。它表达的是“做了一部分工作，但交付结论被反驳”，不能理解为“什么都没做”。
 
 本例是 remote pull 的快照。HTML 会显示评估保存的条件和证据摘录，但不会嵌入原始会话步骤；核对完整工具请求、返回和文件变化时，回到第三节的 `asz view`。
 
@@ -249,7 +243,7 @@ asz judge -show -run 1 -format html \
 
 ### 第四步：读 Overall assessment 和 Overall result
 
-**Overall assessment** 汇总分数、效率和评估自身的完整性。本次按条件计算为 83/100，考虑交付结论被反驳后为 75/100；效率为 79/100，表示按 tokens 计，已审查成本中约 21% 被判为可避免工作。66% 则表示目标成本中流向已完成目标的比例。这些值衡量不同的事情，不是模型的通用正确率。
+**Overall assessment** 汇总分数、效率和评估自身的完整性。本次按完成记录（by the achievement record）计算为 83/100，考虑交付结论被反驳后为 75/100；效率为 79/100，表示按 tokens 计，已审查成本中约 21% 被判为可避免工作。66% 则表示目标成本中流向已完成目标的比例。这些值衡量不同的事情，不是模型的通用正确率。
 
 本次还显示 `grouping: the judge agreed with 0 of your 6 goals; 6 merged`。原评估把六项工作合在一个发布目标下，我们则将它们分开检查。这是目标分组方式的差异，不是“六项目标全部失败”。
 

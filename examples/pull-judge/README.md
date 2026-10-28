@@ -25,7 +25,9 @@ From this directory:
 bash scripts/bootstrap.sh
 ```
 
-This pins asz and its recorder to `341f8c0c9cb8245669cbe45ff5393f6972e05616`, installs
+This pins the local asz CLI to `07a2d95fdf9ebd8af1efc06fff6b1c40d5d02e4d` (#95),
+while retaining the recorder and LangChain component at the cloud experiment's
+`341f8c0c9cb8245669cbe45ff5393f6972e05616`. It installs
 the agent dependencies into `.venv`, runs the business-tool tests and starts a temporary
 local asz service to verify TLS, wrong-token rejection and authenticated pull listing.
 It makes no Bedrock calls and creates no cloud resources.
@@ -126,10 +128,10 @@ network cleanup. Also remove the experiment's Container Insights performance log
 
 ## HTML reports with the newer local CLI
 
-The cloud image and bootstrap remain pinned to the version used in the experiment.
-The blog's HTML export commands require the newer asz CLI with `-show -run N`,
-`-format html` and `-goals`. Until that change is merged and pinned, build that CLI
-from a source checkout containing the report changes, as the blog describes.
+The local CLI built by bootstrap is pinned to the merged asz report commit
+`07a2d95fdf9ebd8af1efc06fff6b1c40d5d02e4d` (#95), supporting `-show -run N`,
+`-format html` and `-goals`. The cloud image and recording components retain the
+version used in the experiment. Bootstrap keeps the two source checkouts separate.
 No collector redeployment or replay of the agent conversation is needed.
 
 `scenarios/judge-goals.yaml` lists the six design goals. On an existing run,
@@ -141,6 +143,7 @@ include evaluation evidence excerpts but do not embed the original conversation
 steps; use `asz view` for those.
 
 The checked-in [HTML report](../../docs/blog/pull-judge/assets/judge-C.html) was
-rendered from cloud snapshot C, Claude run 1, after grouping it by this goal file.
+rendered with merged asz `07a2d95` from cloud snapshot C, Claude run 1, after
+grouping it by this goal file.
 Save the file and open it locally. The original partial stages and disputed
 criteria remain visible.

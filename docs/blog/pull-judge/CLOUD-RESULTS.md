@@ -112,3 +112,20 @@ not shown. Use `asz view` to inspect the underlying conversation.
 Validation covered rendering commands and parsed HTML content/structure. Visual
 browser inspection of the local HTML was not completed because the browser tool
 blocks file URLs. No claim is made here about screenshot verification of this report.
+
+### Verification against the merged report commit
+
+After asz #95 merged, upstream main and the clean local checkout both resolved to
+`07a2d95fdf9ebd8af1efc06fff6b1c40d5d02e4d`. The example bootstrap now builds its
+local CLI from that exact commit, while retaining the cloud image and recording
+components at `341f8c0`. The actual binary reports the full `07a2d95` commit.
+
+Bootstrap passed five business-tool tests and the HTTPS verification, wrong-token
+rejection and authenticated pull checks. The saved C run 1 exported successfully
+as HTML, Markdown, text and JSON using the merged binary. The checked-in HTML was
+regenerated: it now starts with the HTML doctype, puts the remote snapshot reference
+inside the report header, and labels the record score as “by the achievement
+record.” The original scores and six-goal grouping are unchanged. No new cloud
+conversation or full judge evaluation was run for this verification.
+
+HTML SHA-256: `e9f04ebd8db95612e51e3cc80a44766e2d2a4214666b66bfbcaf4e260f880af1`.
