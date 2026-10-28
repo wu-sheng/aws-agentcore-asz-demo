@@ -249,7 +249,11 @@ production 任务展示了另一种需要检查的情况：judge 识别出的完
 
 ### 第四步：查看整体评分、评估完整性和总结
 
-**Overall assessment** 汇总整体评分和评估完整性。本次报告中的几个数字可以这样读：
+向下滚动到报告底部，可以看到 **Overall assessment（整体评估）** 和 **Overall result（整体总结）**。这两个区域汇总整段会话，前面的 Goals 表格则显示单项任务的结果。
+
+![报告底部的整体评估与总结：会话评分、效率、评估完整性和用量](assets/judge-overall.jpg)
+
+上图 Overall assessment 中的四项数值可以这样读：
 
 | 指标 | 数值 | 含义 |
 | --- | --- | --- |

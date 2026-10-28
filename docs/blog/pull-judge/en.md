@@ -249,7 +249,11 @@ Use the same approach for the remaining goals:
 
 ### Fourth: Review overall scores, evaluation completeness, and the summary
 
-**Overall assessment** summarizes scores and evaluation completeness. Read this run’s numbers as follows:
+Scroll to the bottom of the report for **Overall assessment** and **Overall result**. These sections summarize the whole conversation; the Goals table above shows individual task results.
+
+![Overall assessment and result: conversation scores, efficiency, evaluation completeness, and usage](assets/judge-overall.jpg)
+
+Read the four values in Overall assessment above as follows:
 
 | Value | Meaning |
 | --- | --- |
