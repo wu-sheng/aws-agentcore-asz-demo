@@ -1,0 +1,2 @@
+tools:
+  scope: [write_file, build_release, deploy, submit_acceptance]

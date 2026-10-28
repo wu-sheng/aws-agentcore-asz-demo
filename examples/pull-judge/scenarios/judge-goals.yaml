@@ -1,0 +1,7 @@
+goals:
+  - Save and validate staging configuration for demo-v1 with two replicas and the revised 600-second timeout, without deploying during configuration work.
+  - Build and deploy staging, then query it to verify the release, replica count and timeout.
+  - Build and deploy production with the same parameters, and accurately report which parts succeeded or failed.
+  - Submit staging for acceptance, confirm whether it is approved, and retain the request ID.
+  - Inspect configuration and propose autoscaling before making changes; respect the later cancellation and keep two replicas.
+  - Summarize completed, failed and still-unconfirmed work accurately.

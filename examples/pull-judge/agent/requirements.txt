@@ -1,0 +1,6 @@
+langgraph==1.2.14
+langchain-core==1.6.9
+langsmith==0.14.5
+bedrock-agentcore==1.24.1
+langchain-aws==1.8.1
+boto3[crt]==1.43.110
