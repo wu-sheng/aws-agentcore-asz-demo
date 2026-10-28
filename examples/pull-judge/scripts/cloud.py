@@ -14,6 +14,7 @@ import ssl
 import subprocess
 import time
 from urllib.parse import urlparse
+from urllib.request import getproxies, proxy_bypass
 import uuid
 
 import boto3
@@ -61,9 +62,19 @@ def main():
 
     def api(path, bearer=token):
         # Connect to the load balancer while verifying the certificate's private DNS name.
-        conn = http.client.HTTPSConnection(server_name, endpoint.port, context=context, timeout=30)
-        conn.sock = context.wrap_socket(socket.create_connection((endpoint.hostname, endpoint.port), timeout=30),
-                                        server_hostname=server_name)
+        proxy_url = None if proxy_bypass(endpoint.hostname) else getproxies().get("https")
+        if proxy_url:
+            proxy = urlparse(proxy_url)
+            if proxy.scheme != "http" or proxy.username or proxy.password:
+                raise ValueError("This experiment supports an HTTP CONNECT proxy without embedded credentials")
+            conn = http.client.HTTPConnection(proxy.hostname, proxy.port or 80, timeout=30)
+            conn.set_tunnel(endpoint.hostname, endpoint.port)
+            conn.connect()
+            conn.sock = context.wrap_socket(conn.sock, server_hostname=server_name)
+        else:
+            conn = http.client.HTTPSConnection(server_name, endpoint.port, context=context, timeout=30)
+            conn.sock = context.wrap_socket(socket.create_connection((endpoint.hostname, endpoint.port), timeout=30),
+                                            server_hostname=server_name)
         try:
             conn.request("GET", path, headers={"Authorization": "Bearer " + bearer})
             response = conn.getresponse()
