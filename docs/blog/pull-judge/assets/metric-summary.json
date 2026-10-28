@@ -1,0 +1,131 @@
+[
+  {
+    "window": "idle",
+    "start": "2026-10-28T01:18:00+00:00",
+    "end": "2026-10-28T01:19:00+00:00",
+    "metrics": {
+      "CPUUtilization": {
+        "samples": 1,
+        "mean": 4.10037334014972,
+        "max": 4.185319140553474,
+        "unit": "Percent"
+      },
+      "MemoryUtilization": {
+        "samples": 1,
+        "mean": 4.4921875,
+        "max": 4.4921875,
+        "unit": "Percent"
+      },
+      "CpuUtilized": {
+        "samples": 1,
+        "mean": 20.99391150156657,
+        "max": 20.99391150156657,
+        "unit": "None"
+      },
+      "MemoryUtilized": {
+        "samples": 1,
+        "mean": 46.0,
+        "max": 46.0,
+        "unit": "Megabytes"
+      },
+      "NetworkRxBytes": {
+        "samples": 1,
+        "mean": 1185.0,
+        "max": 1185.0,
+        "unit": "Bytes/Second"
+      },
+      "NetworkTxBytes": {
+        "samples": 1,
+        "mean": 1199.0,
+        "max": 1199.0,
+        "unit": "Bytes/Second"
+      }
+    }
+  },
+  {
+    "window": "collect_pull",
+    "start": "2026-10-28T01:19:00+00:00",
+    "end": "2026-10-28T01:25:00+00:00",
+    "metrics": {
+      "CPUUtilization": {
+        "samples": 6,
+        "mean": 9.348906507922543,
+        "max": 24.162927627563477,
+        "unit": "Percent"
+      },
+      "MemoryUtilization": {
+        "samples": 6,
+        "mean": 5.197482638888889,
+        "max": 5.46875,
+        "unit": "Percent"
+      },
+      "CpuUtilized": {
+        "samples": 6,
+        "mean": 47.866401320563426,
+        "max": 86.53613199869794,
+        "unit": "None"
+      },
+      "MemoryUtilized": {
+        "samples": 6,
+        "mean": 52.833333333333336,
+        "max": 55.0,
+        "unit": "Megabytes"
+      },
+      "NetworkRxBytes": {
+        "samples": 6,
+        "mean": 34595.5,
+        "max": 90081.0,
+        "unit": "Bytes/Second"
+      },
+      "NetworkTxBytes": {
+        "samples": 6,
+        "mean": 33150.833333333336,
+        "max": 85428.0,
+        "unit": "Bytes/Second"
+      }
+    }
+  },
+  {
+    "window": "local_judge",
+    "start": "2026-10-28T01:25:00+00:00",
+    "end": "2026-10-28T01:31:00+00:00",
+    "metrics": {
+      "CPUUtilization": {
+        "samples": 6,
+        "mean": 4.333406175176303,
+        "max": 4.53558737039566,
+        "unit": "Percent"
+      },
+      "MemoryUtilization": {
+        "samples": 6,
+        "mean": 5.292426215277778,
+        "max": 5.37109375,
+        "unit": "Percent"
+      },
+      "CpuUtilized": {
+        "samples": 6,
+        "mean": 22.18703961690267,
+        "max": 22.898540013631187,
+        "unit": "None"
+      },
+      "MemoryUtilized": {
+        "samples": 6,
+        "mean": 54.166666666666664,
+        "max": 55.0,
+        "unit": "Megabytes"
+      },
+      "NetworkRxBytes": {
+        "samples": 6,
+        "mean": 3304.3333333333335,
+        "max": 3377.0,
+        "unit": "Bytes/Second"
+      },
+      "NetworkTxBytes": {
+        "samples": 6,
+        "mean": 3488.0,
+        "max": 3580.0,
+        "unit": "Bytes/Second"
+      }
+    }
+  }
+]

@@ -1,77 +1,82 @@
 # 采集云端会话，本地评估：用 Apache SkyWalking AI Sessionizer 分析 Amazon Bedrock AgentCore 上的 AI Agent
 
-> 编辑状态：中文初稿，2026-10-28。真实 Nova Pro 七轮会话、本地采集、HTTPS pull 和本地 Claude Code judge 已运行，见[本地实测记录](LOCAL-RESULTS.md)。AgentCore 部署与云端负载测量尚未完成；以下云端流程仍待验证。所有“待实测”标记必须在发布前替换，中英文使用同一批证据。
+> 审阅稿，2026-10-28。本文使用同一次真实 AgentCore 实验；业务部署是明确披露的模拟环境。原始记录、判定争议与测量方法见 [实验记录](CLOUD-RESULTS.md)。尚未发布到 AWS Builder。
 
-Agent 返回“已经完成”时，任务是否真的完成了？工具调用成功，可能只说明申请已经提交；配置文件写入成功，也不代表它通过了验证。另一些任务确实完成了，但中途反复修改，原因可能是 Agent 犯错，也可能是用户改变了要求。
+Agent 回答“已经完成”之后，我们还需要回答几个问题：它完成的是用户原来的目标，还是一个缩小了范围的目标？重试是因为用户改变了要求，还是因为 Agent 把有先后依赖的工具并行调用了？申请提交成功，是否就等于批准结果已经得到确认？
 
-在[此前的 AgentCore 实践](https://builder.aws.com/content/3KjX67DohBgEr8yPadw5MoDSV5C/agentcore-langgraph-agent)中，我们使用 Apache SkyWalking AI Sessionizer（命令名为 `asz`）保存 Agent 的执行记录和文件变更。这篇文章继续探索记录保存之后的工作：把选定的云端会话拉回开发者电脑，使用本地 Agent CLI 评估目标完成情况、执行成本及返工原因。
+在[上一篇 AgentCore 实践](https://builder.aws.com/content/3KjX67DohBgEr8yPadw5MoDSV5C/agentcore-langgraph-agent)中，我们用 Apache SkyWalking AI Sessionizer（`asz`）保存执行过程和文件变更。这次继续往后走一步：**云端保留采集服务，开发者按需拉取会话，再使用本地 Agent CLI 进行评估。**
 
-## 一个模拟发布助手，使用真实 Bedrock 模型
+我们实际运行了一个使用 Amazon Bedrock 模型的 LangGraph Agent，将它部署到 Amazon Bedrock AgentCore Runtime，完成七轮交互，拉取三个快照，并在本地执行 judge。结果既展示了完成、返工、证据不足和取消，也暴露了评估模型可能放宽目标标准的问题。
 
-本次示例计划在 Amazon Bedrock AgentCore Runtime 上运行一个 LangGraph 发布助手。它调用真实的 Amazon Bedrock 模型，由模型选择工具、读取工具结果，并决定下一步操作。
+## 一个真实调用模型的发布助手
 
-模拟的是业务环境。配置验证工具读取实际生成的配置文件；部署工具将版本和配置摘要写入演示环境的状态文件；状态工具读取此前保存的结果。production 环境的部署权限被设置为拒绝，外部验收结果被设置为暂时不可查询。这些是公开的实验条件。
+Agent 使用 `ChatBedrockConverse` 调用 `us.amazon.nova-pro-v1:0`，运行区域为 `us-east-1`，temperature 为 0，最大输出为 2048 tokens。没有模型配置就报错，没有 scripted model 回退。模型自主决定工具调用及后续动作。
 
-这种设置让我们能够观察 Agent 在成功、失败和证据不足时如何行动。它不会预先规定 Agent 的回答，也不会为 judge 写好结论。
+模拟的是业务系统：工具实际读写 JSON 配置，检查 schema，生成包含配置的发布包，并把模拟部署和验收申请写入状态文件。production 部署被权限规则拒绝；验收结果查询工具配置为不可用。它们不会操作真实生产应用。
 
-【待实测：填入 AWS 区域、Agent 模型 ID、Agent 与 asz 提交号、镜像摘要、依赖版本和实验日期。】
+工具包括 `read_file`、`write_file`、`validate_config`、`build_release`、`deploy`、`get_deployment`、`submit_acceptance` 和 `get_acceptance`。每段会话使用独立工作目录；AgentCore session ID 同时作为 LangGraph thread ID。记录组件跟踪修改文件的工具，保存调用窗口前后的变化。
 
-## 云端采集与本地评估各自承担什么
+本次 AgentCore 中的模型访问使用 Runtime 的 IAM role。本地预验证可以使用 Bedrock API token，但这个 token 没有被放入部署镜像或 Runtime 配置。
 
-Agent 通过 LangChain 的追踪客户端向云端 asz 发送执行记录。工具产生的文件变更通过共享目录交给 asz。云端服务组装并保存会话，同时为本地客户端提供远程拉取接口。
+云端 asz、本地 CLI、LangChain 记录组件和文件 recorder 都固定在 `341f8c0c9cb8245669cbe45ff5393f6972e05616`，包含本次最新的 #94 更新。依赖与 Agent 镜像构建信息见示例目录。
+
+## 采集留在云端，评估按需在本地运行
 
 ```mermaid
 flowchart LR
-  A[AgentCore 上的 LangGraph Agent] -->|执行记录| S[云端 asz server]
+  A[AgentCore / LangGraph Agent] -->|LangSmith tracing| S[asz on ECS Fargate]
   A -->|文件变更| E[共享 EFS]
   E --> S
-  S --> D[持久化会话存储]
-  S -->|HTTPS 与 Token / asz pull| L[本地会话快照]
+  S --> D[持久化会话文件]
+  S -->|HTTPS + token / asz pull| L[本地快照]
   L --> V[asz view]
-  L --> J[asz judge 与本地 Agent CLI]
-  J --> M[CLI 使用的模型服务]
+  L --> J[asz judge + 本地 CLI]
+  J --> M[CLI 的模型服务]
 ```
 
-评估按需执行。日常采集不会自动启动 judge，云端采集服务也不需要安装评估 CLI 或维护它的登录状态。拉取完成后，本地可以针对这份快照多次评估。
+采集服务使用独立的 ECS Fargate 任务：0.5 vCPU、1024 MiB 内存，文件保存在 EFS。演示将采集间隔设为 5 秒，以便交互后较快查看结果。
 
-这里的“本地评估”指评估进程、会话快照和结果保存在开发者电脑上。CLI 读取的会话内容仍会发送给它使用的模型服务。
+Agent 的追踪请求通过私有 ALB 到达 1985 端口。远程 pull 使用另一套 token；公网入口通过 NLB 透传 TCP，在 asz 内终止 TLS，并限制客户端出口 IP。实验使用自签证书，本地通过 `ca_file` 和 `server_name` 校验；错误 token 实测返回 401。NLB 使用 TCP 健康检查，避免把受认证保护页面返回的 401 当作服务故障。
 
-【待实测：用最终部署图替换上图；写明 HTTPS 终止位置、Token 配置、本地连接方式及 ALB 健康检查方案。】
+云端不安装评估 CLI，也不维护它的登录状态。只有本地显式运行 `asz judge` 时才启动评估。这里的“本地”指进程、快照和结果在开发者电脑上；evaluator 读取的会话仍会发送给它使用的模型服务。
 
-## 让一次发布经历多轮交互
+## 七轮交互，留下可核对的证据
 
-我们将整个实验设计为同一段会话。每次调用携带相同的 AgentCore session ID，并将其用于 LangGraph 的 thread ID。
-
-| 阶段 | 用户要求 | 实验提供的条件 |
+| 轮次 | 用户要求 | 本次实际行为 |
 | --- | --- | --- |
-| 准备 | 生成 staging 配置，设置两个副本和 300 秒空闲超时，验证配置 | 配置可正常写入和检查 |
-| 调整 | 用户将超时改为 600 秒，要求重新验证 | 保留修改前后的文件证据 |
-| 部署 | 部署 staging 并查询状态，核对配置是否生效 | 模拟部署保存可读取的状态 |
-| 推进 | 生成 production 发布包并部署 | 发布包可生成，production 部署明确被拒绝 |
-| 验收 | 提交 staging 验收并确认是否通过 | 提交保存申请 ID，结果查询不可用 |
-| 规划 | 提出自动扩缩容目标，要求先规划，等待确认再实施 | 尚未授权实施 |
-| 收尾 | 取消自动扩缩容实施目标，汇总已有结果 | 取消与失败需要分别处理 |
+| 1 | 生成两个副本、300 秒超时的 staging 配置并验证，不部署 | 首次验证早于写入完成，重试后验证通过 |
+| 2 | 把超时改为 600 秒并重新验证 | 第一次验证读到旧值；模型重试，最终验证读到 600 |
+| 3 | 构建、部署 staging，再查询核对 | 部署返回成功，但并行查询读到 `not_deployed`；模型未再查询 |
+| 4 | 构建 production 包并部署，说明成功和失败部分 | 修复首次验证、构建失败后得到有效包；部署明确被拒绝 |
+| 5 | 提交验收并确认是否批准，保留申请 ID | 提交成功，`approved: null`；模型报告未知，未调用查询工具 |
+| 6 | 检查配置并提出扩缩容计划，等待确认 | 给出计划，未重新调用检查工具，也未修改文件 |
+| 7 | 取消扩缩容，保留两个副本并总结 | 没有新增工具调用或文件变更，返回总结 |
 
-这些条件不保证 judge 会生成某个固定的 target 划分。例如“生成发布包并部署”可以被识别为一个部分完成的目标，也可以被拆成一个完成目标和一个失败目标。我们需要检查结论是否与证据一致。
+这次实际路径没有调用 `get_acceptance`，因此不能说“观察到了验收服务不可用”。不可用是实验预设条件；记录实际证明的是提交结果没有批准信息。
 
-【待实测：补入实际会话片段；记录 Agent 是否遵循要求，不能将上表当作实际执行结果。】
+![云端配置变化在本地快照中回放](assets/cloud-change.png)
 
-## 拉取一个确定版本的会话
+上图来自拉回本地的云端会话：`configs/staging.json` 的超时从 300 改成 600。工具返回值还显示，第一次并行验证读到旧配置，之后重试才读到新配置。只看最终回答，会错过这段过程。
 
-本地 asz 配置一个命名为 `demo` 的远程服务。下面的地址仅为占位示例，Token 文件由实际部署流程提供。
+完整会话包含 7 个用户轮次、17 次模型调用、21 次工具调用和 11 条变更记录。view 检查结果为 `verified`，没有 unresolved 项。变更记录数不等于不同文件数。
+
+## 用 pull 固定会话的一个版本
+
+在本地配置远程服务。下面是配置结构，地址和凭据路径应替换成自己的部署输出；不要把 token 写入文章或仓库。
 
 ```yaml
 storage:
   root: ./data
+adapters: []
 remotes:
   - name: demo
-    url: https://asz.example.internal:8788
+    url: https://YOUR_NLB_HOST:8788
     token_file: ./secrets/demo.token
+    ca_file: ./secrets/demo-ca.pem
+    server_name: asz-pull-judge.internal
 ```
 
-如果服务端使用私有 CA，还需要配置 `ca_file`。采集端使用的凭证与 pull Token 分开配置。
-
-在该配置所在目录运行：
+`server_name` 对应实验所用证书名称。若使用系统信任且与 URL 主机名一致的证书，可按实际证书配置简化。
 
 ```sh
 asz pull -list -remote demo
@@ -79,84 +84,101 @@ asz pull demo/CONVERSATION_ID
 asz view
 ```
 
-`CONVERSATION_ID` 替换为列表实际显示的标识。pull 返回的快照标签需要保存下来。快照固定了本次拉取的会话版本，后续云端交互不会修改它。
+Conversation ID 从远程列表取得。本次在第 1、5、7 轮后各拉取一次，标签固定了三个时刻的记录；后续交互不会修改已有快照。
 
-本次计划在准备配置之后、验收请求之后以及取消目标之后分别拉取一次，保存三个标签。它们属于同一段持续增长的 conversation。
+| 快照 | 用户轮次 | 模型调用 | 标签 | 单次 pull 耗时 |
+| --- | ---: | ---: | --- | ---: |
+| A | 1 | 3 | `20261028T012012.181192000Z` | 7.70 秒 |
+| B | 5 | 15 | `20261028T012311.930162000Z` | 11.52 秒 |
+| C | 7 | 17 | `20261028T012355.350667000Z` | 10.12 秒 |
 
-【待实测：列举与 pull 的实际输出，以及本地页面中的远程会话和文件变更截图。】
+再次拉取 C 返回 `unchanged`，耗时 10.46 秒。复用已有数据不等于每次端到端请求都更快：这里有跨区域代理网络，而且每项只有一次样本。第 5 轮后的只读状态检查还发生过一次 TLS 中断；我们保留已完成的五轮调用，恢复拉取后继续第 6、7 轮，没有重复执行 Agent 操作。
 
-## 使用本地 CLI 执行 judge
+## 在本地对快照执行 judge
 
-以已安装并登录的 Claude Code CLI 为例，对一个固定快照执行评估：
-
-```sh
-asz judge -evaluator claude -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
-asz judge -list -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
-asz judge -show RUN_NUMBER -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
-```
-
-将占位符替换为实际会话标识、快照标签和运行编号。需要先拉取最新版本再评估时，可以使用：
+本次先使用已登录的 Claude Code CLI。固定快照的命令是：
 
 ```sh
-asz judge -pull -evaluator claude -remote-conversation demo/CONVERSATION_ID
+asz judge -evaluator claude \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+
+asz judge -show 1 \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-judge 通过只读的会话导航向 evaluator 提供记录。模型识别用户目标，判断完成情况，并标注工作类型；asz 根据已记录的模型用量和价格配置计算、分摊与汇总成本。没有记录的用量或没有配置的价格，应保留为未知或未定价。
+需要先同步云端最新记录时，才加 `-pull`。本次还复制了一份配置，把 remote URL 改为 `https://127.0.0.1:9`：`pull -list` 实际返回 connection refused，而不带 `-pull` 的 judge 可以继续读取已有快照。之后停止 Agent 会话并清理云端资源，本地记录仍可复核。
 
-## 报告中需要区分的五种情况
+judge 识别目标与完成条件，读取只读会话导航，引用工具结果和文件变化。asz 根据记录的模型用量及价格配置进行成本汇总。我们分别评估 A、B、C；这是三个独立运行，不是自动给它们做一次趋势比较。
 
-### 有证据支持完成
+| 快照 / Claude run 1 | 报告状态 | 记录完成分 | 最终分 | 效率分 |
+| --- | --- | ---: | ---: | ---: |
+| A | partial | 100 | 100 | 71 |
+| B | complete | 81 | 75 | 73 |
+| C | partial | 83 | 75 | 79 |
 
-staging 部署的依据应包括写出的配置、验证结果、部署返回值和状态核对。报告中的 `achieved` 需要能够沿引用回到这些记录。
+原始 stage 状态、criteria 和分值保留在 [judge 摘要](assets/judge-summary.json) 中。这些数字需要连同目标口径和证据一起读，不能当作独立的质量结论。C 有一个取消目标，不参与完成评分。任务共记录 46,694 input tokens 和 1,840 output tokens；当前价格配置未给这些调用定价，不能把成本写成零。三份 Claude 报告合计报告约 5.86 USD，这是 CLI 提供的成本数据，不是实付账单。
 
-【待实测：实际 target、判定依据、引用和报告截图。】
+## 从结果中读出什么，又不能直接相信什么
 
-### 完成了，但发生过返工
+**完成与返工可以同时存在。** A 的配置目标为 `achieved`，但有一次验证失败后的恢复。C 保留了用户将 300 改为 600 的需求变化，以及工具执行中的错误。需求变更和可避免的 Agent 工作不能混为一谈。
 
-用户将 300 秒改为 600 秒，会触发修改和重新验证。judge 可以保留返工过程，并识别这是需求变化。返工不是独立的最终分类，也不自动降低完成评分；其成本和效率需要另外阅读。
+**部署成功与完成验证是不同的条件。** staging 的 `deploy` 返回成功，查询却与部署并行，读到旧的 `not_deployed`。Agent 没有重查，因此不能宣称完成了用户要求的查询验证。Claude 将该目标标为 `contradicted`，最终给 0 分；人工复核时仍要保留部署工具的成功证据，不能据此反推“部署没有发生”。
 
-如果模型实际犯错并被验证工具发现，再展示错误引起的返工。不能把用户改变需求的成本都算成 Agent 的可避免工作。
+**目标标准可能被 evaluator 放宽。** production 的工具结果是明确的 `denied`、`deployed: false`。然而 Claude 把一个 criterion 写成了 “a production deployment is attempted”，于是尝试并报告失败也满足了条件，该目标显示 `achieved`。这不代表 production 部署完成，而是提示我们先检查 evaluator 对用户目标的解释。
 
-【待实测：实际 rework、原因、成本，以及该目标最终是否完成。】
+**未知不会因为一个完成标签而消失。** 验收申请已保存，但批准字段为 null。Claude 将 criterion 解释为“报告批准状态”，也给出 `achieved`。报告中没有独立的 `cannot_verify` 目标；不能为了展示标签而把它改写成有，也不能把 `achieved` 写成“验收通过”。
 
-### 明确失败与部分完成
+**取消与失败需要区分。** C 的扩缩容目标为 `cancelled`，不计分。计划仍有可复核的问题：没有重新检查配置，提议的新字段也超出现有 schema。取消不意味着此前计划自动正确。
 
-production 发布包生成成功，与部署权限被拒绝是两个事实。报告需要保留已完成的工作，也不能把被拒绝的部署写成成功。
+**报告的 partial 不等于目标的 partly。** A 有一条 observation 未通过引用、摘录或重复检查而被剔除。C 有两项缺少 Agent 自述以外证据的判定被减弱，效率阶段还有一项未标注。`partial` 描述评估产物的完整性；`partly` 描述某个目标的完成程度。二者不能互换。
 
-【待实测：实际目标划分，`not_achieved` 或 `partly` 等结论及其证据。】
+我们随后对同一个 C 快照运行 `asz judge -evaluator codex`，保留为 run 2。它将 staging 验证和验收确认判为 `partly`，但 production 仍采用“尝试部署”的 criterion。
 
-### 无法验证
+| C 的目标 | Claude run 1 | Codex run 2 | 人工复核时要保留的事实 |
+| --- | --- | --- | --- |
+| staging 部署与验证 | contradicted，0 | partly，67 | deploy 返回成功，查询验证未完成 |
+| production | achieved，100 | achieved，100 | 实际部署被拒绝；两者都把标准写成尝试 |
+| 验收 | achieved，100 | partly，67 | 申请已提交，批准仍未知 |
+| 扩缩容 | cancelled，不计分 | cancelled，不计分 | 没有实施，计划仍需检查 |
 
-验收申请 ID 可以证明请求已被接受，却不能证明验收通过。当查询没有提供结果时，批准结果仍然未知。报告可能将提交与批准拆成两个目标，也可能在一个目标中分别列出已满足和无法确认的条件。
+Codex 这次报告同样为 `partial`，最终分 80、效率分 94；一个 main target 无法确定，一项缺少外部证据的判定被减弱。其记录没有报告模型名称或费用，我们没有补猜。单次对比不足以评价哪个 CLI 总体更好，却说明了保留相同快照、查看 criteria 和证据引用的价值。
 
-【待实测：未知条件和 `cannot_verify` 是否出现；如未出现，解释实际报告，不能替换或编造输出。】
+## 云端承担了多少额外工作
 
-### 用户取消的目标
+我们读取同一 ECS 服务的 CloudWatch 指标，采样周期为 60 秒。CPU 百分比相对于分配的 0.5 vCPU，内存百分比相对于 1024 MiB。下表的平均值是窗口内每分钟 Average 的平均，最大值是窗口内 CloudWatch Maximum 的最大。
 
-用户取消自动扩缩容实施后，报告应将它与执行失败区分。已交付的计划与被取消的实施也可能是不同的目标。取消目标不计入完成评分。
+| 阶段（UTC） | 分钟样本数 | CPU 平均 / 最大 | 内存平均 / 最大 |
+| --- | ---: | ---: | ---: |
+| 会话前空闲，01:18–01:19 | 1 | 4.10% / 4.19% | 4.49% / 4.49% |
+| 交互与拉取所在窗口，01:19–01:25 | 6 | 9.35% / 24.16% | 5.20% / 5.47% |
+| 本地 judge 期间，01:25–01:31 | 6 | 4.33% / 4.54% | 5.29% / 5.37% |
 
-【待实测：取消事件、目标状态与评分处理。】
+这组数据支持的结论很有限：本次小会话在给定规格上完成了采集和 pull，本地评估期间云端 CPU 接近此前空闲样本。云端仍有采集轮询、EFS 与健康检查工作，不能说“零开销”。一分钟聚合也不能隔离每次短暂 pull 的峰值；我们没有据此给出生产吞吐量保证。
 
-## 生产侧增加了多少工作
+网络指标保留为服务级 Bytes/Second，没有当作单次 pull 的传输字节数。采集与拉取在部分分钟重叠，空闲基线也只有一个样本。这是可复现的 PoC 观察，不是容量测试。[ECS 指标说明](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html)、[Container Insights 指标](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-metrics-ECS.html)。
 
-首次拉取需要服务端准备并传输数据。重复拉取可以复用本地已有文件，但它仍需要与远程服务交互。只有对已经拉取的快照执行不带 `-pull` 的 judge，才不需要访问远程 asz。
+## 复现与保留证据
 
-我们计划分别记录日常采集、首次 pull、重复 pull 和本地 judge 期间的云端 CPU、内存、存储与网络活动，并在限制本机访问远程 asz 的情况下复验本地 judge。模型服务连接仍需可用。
+[独立示例](https://github.com/wu-sheng/aws-agentcore-asz-demo/tree/poc/pull-judge/examples/pull-judge) 位于 `examples/pull-judge/`，包括 Agent、七轮请求、独立 OpenTofu 配置、cloud/pull/judge 脚本与清理入口。Agent 的 ARM64 镜像由专用 GitHub Actions workflow 构建，使用独立包名和提交标签。上一篇文章的代码、命令和版本固定值未修改。
 
-【待实测：部署规格、会话规模、测量方法、样本次数和结果表。不能将小规模 PoC 外推为生产吞吐量保证。】
+在示例目录按 README 准备依赖与 AWS 登录后，核心流程是：
 
-## 复现与继续使用
+```sh
+.venv/bin/python scripts/prepare-cloud.py --client-ip YOUR_PUBLIC_IPV4
+AGENT_IMAGE=YOUR_WORKFLOW_IMAGE bash scripts/up.sh
+.venv/bin/python scripts/cloud.py
+.venv/bin/python scripts/judge.py .work/cloud-TIMESTAMP
+bash scripts/down.sh --yes
+bash scripts/down.sh check
+```
 
-新示例计划放在原仓库的 `examples/pull-judge/`，使用独立镜像、配置和部署状态；上一篇文章的示例、命令和版本固定值保持原样。
+若客户端使用代理，允许的 IP 应是实际代理出口。先归档快照、判定、工具记录和所需日志，再清理云端 EFS。快照和 judge 结果有保留期限；原始证据应另存，归档时排除 token 和 TLS 私钥。
 
-【发布前补齐：新示例的固定提交链接、部署和清理命令、实测费用，以及所需模型访问条件。】
+本次已停止 Agent 会话，并核实 AgentCore Runtime、Fargate 任务、EFS、NAT Gateway、Elastic IP、负载均衡和实验日志组已删除。AWS 管理的 AgentCore 网卡仍占用私有子网与安全组，VPC 的最后清理尚在等待服务释放网卡；这些剩余网络资源不产生独立使用费。清理状态与证据目录保留在实验记录中。
 
-本地快照与其中的 judge 结果有保留期限。需要长期保留文章证据时，应另行归档完整实验材料。默认期限和配置方法以本次实际使用版本的文档为准。
+## 参考
 
-## 参考资料
-
-- [原示例仓库](https://github.com/wu-sheng/aws-agentcore-asz-demo)
-- [Pull 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/remote-pull.md)
-- [Judge 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/judge.md)
-- [Judge 的判定与成本模型](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/concepts-and-designs/conversation-judge.md)
-- [AgentCore VPC 连接](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html)
+- [asz pull（本次固定版本）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/remote-pull.md)
+- [asz judge（本次固定版本）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/judge.md)
+- [判定、证据范围与成本模型](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/concepts-and-designs/conversation-judge.md)
+- [AgentCore Runtime 的版本、endpoint 与 session](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-how-it-works.html)

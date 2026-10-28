@@ -1,7 +1,8 @@
 # Pull and judge a release assistant
 
-Work in progress. The real Bedrock conversation, collection, HTTPS pull and local CLI
-judge have been exercised locally. The isolated AgentCore deployment also completed the seven-turn conversation; local evaluation reports are being reviewed.
+Verified on October 28, 2026: real Bedrock inference on AgentCore, a seven-turn conversation,
+three HTTPS pull snapshots and local Claude/Codex CLI evaluation. Reports include partial
+stages and disputed target criteria; see the cloud record before interpreting scores.
 
 The agent uses a real Bedrock model through LangGraph. Its business environment is a
 disclosed simulator: configuration files, release bundles, deployments and acceptance
@@ -16,7 +17,7 @@ This directory has separate configuration and artifacts. The original `agent/`,
 
 Prerequisites: Git, Go 1.27+, uv, OpenSSL, AWS CLI and valid AWS credentials for the
 real-model run. Python 3.12 is installed/selected by uv. Claude Code must be installed
-and signed in for the proposed local CLI evaluation.
+and signed in for local CLI evaluation.
 
 From this directory:
 
@@ -83,11 +84,12 @@ See [the experiment plan](../../docs/blog/pull-judge/POC.md) and the
 ## Current verification
 
 On 2026-10-28, five business-state tests, missing-model rejection and the HTTPS/authenticated
-pull preflight passed. The seven-turn Nova Pro run produced 18 model calls and three pulled
+pull preflight passed. The earlier local Nova Pro run produced 18 model calls and three pulled
 snapshots; pulling the final head again returned unchanged. Local Claude Code judge runs
 produced reports, including a partial report whose invalid evidence observation was rejected.
 See [the local experiment record](../../docs/blog/pull-judge/LOCAL-RESULTS.md) for actual
-findings and limitations. The isolated cloud deployment and all seven turns have also completed; see [cloud evidence](../../docs/blog/pull-judge/CLOUD-RESULTS.md).
+findings and limitations. The final cloud run on asz `341f8c0` produced 17 model calls, 21 tool calls and 11 change records.
+Three Claude reports and a Codex comparison are saved; see [cloud evidence](../../docs/blog/pull-judge/CLOUD-RESULTS.md).
 The original tracked blog and demo files remain unchanged.
 
 ## Independent cloud experiment

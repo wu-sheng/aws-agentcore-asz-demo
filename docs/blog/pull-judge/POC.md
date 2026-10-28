@@ -1,6 +1,6 @@
 # Pull / judge 博客 PoC 实施说明
 
-状态：真实 Bedrock 模型的七轮会话、本地采集、HTTPS pull 与本地 CLI judge 已实测；AgentCore 云端七轮会话和三个快照也已完成，新版 judge 正在核对。详见 [云端实测记录](CLOUD-RESULTS.md)。日期：2026-10-28。
+状态：真实 Bedrock 模型的七轮会话、本地采集、HTTPS pull 与本地 CLI judge 已实测；AgentCore 云端七轮会话、三个快照及四次 judge 均已完成并人工复核，中英文审阅稿已更新。详见 [云端实测记录](CLOUD-RESULTS.md)。日期：2026-10-28。
 
 ## 已确认范围
 
@@ -14,7 +14,7 @@
 ## 版本基线与旧文章保护
 
 - 旧 demo 基线：`2ad72209751711924f1d09d570ebd88fb116e4a6`。
-- 当前写作参考 asz：`22bcf3cc5ed4d1dd90f3ce1be8db192442844469`，文档标记为 0.7.0 开发中。
+- 最初写作参考 asz：`22bcf3cc5ed4d1dd90f3ce1be8db192442844469`；最终云端实测版本为下述 `341f8c0`。
 - 参考提交不代表已验证镜像可用。实施时检查镜像与本地 CLI，确定并记录实际测试提交。
 - 本地首轮预验证使用 `4ff3d426780d28ef06bced7050d60426e9cebbff`，结果保留版本标记。云端实验升级到 `341f8c0c9cb8245669cbe45ff5393f6972e05616`（#94），同步 CLI、采集服务和记录组件；新增 absence claim 的读取范围统计，以及工具参数显示修复。
 - 新 Agent 的 asz-changes、LangChain 记录组件与云端 asz 使用一致的提交。
@@ -73,7 +73,7 @@ examples/pull-judge/
 6. "I also want autoscaling for staging, from two to four replicas. First inspect the current configuration and propose an implementation plan. Wait for my confirmation before changing anything."
 7. "Cancel the autoscaling implementation; keep the current fixed replica count. Summarize what was completed, what failed, and what still cannot be verified."
 
-这些轮次是拟定请求。模型的回复、工具调用与 judge 输出必须来自实际运行。
+实际运行使用上述七轮请求。模型回复、工具调用与 judge 输出来自保存的云端记录。
 
 ## 快照与采集完成条件
 
@@ -118,11 +118,11 @@ examples/pull-judge/
 - [x] 使用真实模型的本地采集 → pull → judge 链路通过（judge 含 partial 结果，需如实解释）。
 - [x] 按仓库约定构建独立部署镜像。
 - [x] 真实 AgentCore 部署和七轮会话完成，原始证据保存到独立目录。
-- [ ] 三个快照与 judge 结果保存，人工核查完成。
+- [x] 三个快照与 judge 结果保存，人工核查完成。
 - [x] 本地 judge 独立于远程 asz 的验证完成（remote 改为不可达地址；pull 失败而已有快照可评估）。
-- [ ] 负载数据与局限写入两篇文章。
-- [ ] 中英文截图来自同一次实验；所有占位符替换。
-- [ ] 旧示例复现路径复查；新增资源清理结果记录。
+- [x] 负载数据与局限写入两篇文章。
+- [x] 中英文截图来自同一次实验；所有占位符替换。
+- [x] 旧示例复现路径复查；新增资源清理结果记录。
 - [ ] 文章内容审核后再进入 AWS Builder 发布流程。
 
 实验材料保存到新示例专用、git-ignored 的 evidence 目录。原始数据中的凭证不进入仓库或截图。快照及其中的 judge 结果会过期，另存长期证据包。

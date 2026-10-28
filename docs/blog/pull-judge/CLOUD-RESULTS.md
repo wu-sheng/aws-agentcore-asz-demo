@@ -40,12 +40,46 @@
 pull -list 的实际检查返回 connection refused；随后不带 -pull，对三个本地快照分别执行 Claude Code judge。
 这验证不需要可达的云端 asz；不表示 evaluator 模型服务离线。
 
-待补入三个报告的完成状态、目标判定、效率和 CLI 报告成本；不要用本地预验证的报告替换云端报告。
+Claude Code 2.1.312，报告模型为 `claude-fable-5-1`；每个快照保留 run 1。
+
+| 快照 | 状态 | 记录分 / 最终分 / 效率 | 耗时 | CLI 报告 USD |
+| --- | --- | --- | --- | --- |
+| A | partial | 100 / 100 / 71 | 128.84 秒 | 0.82874325 |
+| B | complete | 81 / 75 / 73 | 411.04 秒 | 2.45629015 |
+| C | partial | 83 / 75 / 79 | 425.48 秒 | 2.57417145 |
+
+A 剔除一条未通过引用、摘录或重复检查的 observation。C 的 achievement 有两项缺少 Agent 自述以外证据的判定被减弱；efficiency 留下一项未标注。报告 partial 不等于目标 partly，CLI 正常退出也不表示所有评估阶段完整。
+
+C 的关键复核：
+
+- 配置 achieved；包含执行错误与需求变更返工。
+- staging partly，记录分 40，最终 class contradicted、最终分 0。但 deploy 工具确实返回成功；并行查询的旧状态不能证明部署没发生，只能证明要求的查询验证没有完成。
+- production achieved、100，是因为 evaluator 把 criterion 写成 `a production deployment is attempted`。工具的 denied / deployed:false 没有消失；不能把标签解释为部署成功。
+- 验收 achieved、100，criterion 采用“报告批准状态”。批准仍为 null，未产生独立 cannot_verify 目标。
+- 扩缩容 cancelled，不计分；总结 partly、75。
+
+对同一 C 快照另用 Codex CLI 0.163.0 执行 run 2：partial，记录分/最终分 80，效率 94，223.389 秒。targets 有一个 main target 无法确定，achievement 有一项证据不足而减弱。staging 与验收均 partly、67；production 同样采用“尝试部署”并给 achieved、100；扩缩容 cancelled、不计分。没有报告模型名称或价格，不补猜。保留两份报告，不用第二次结果覆盖第一次，也不以单次样本比较 CLI 的普遍优劣。
+
+Agent 用量 46,694 input + 1,840 output tokens，17 次调用未定价，不能写作零费用。Claude 三份报告合计 5.85920485 USD 是 CLI 报告成本，不是实付账单。公开的 [judge 摘要](assets/judge-summary.json) 保留原始目标、criteria、stage 状态和计算分值；完整快照另行本地归档。
 
 ## 负载、局限与清理
 
 采样使用 AWS/ECS CPUUtilization / MemoryUtilization 和 ECS/ContainerInsights 指标，Period 60 秒。
 指标以返回的单位保存；网络为 Bytes/Second，不是一次 pull 的传输字节数。空样本保持缺失。
-需要在 judge 完成后补录完整时间区间和清理结果。短暂 pull 峰值可能被一分钟聚合隐藏，单会话不能代表生产吞吐量。
+| UTC 窗口 | 分钟样本 | CPU 平均 / 最大 | 内存平均 / 最大 |
+| --- | ---: | ---: | ---: |
+| idle 01:18–01:19 | 1 | 4.10% / 4.19% | 4.49% / 4.49% |
+| collect/pull 01:19–01:25 | 6 | 9.35% / 24.16% | 5.20% / 5.47% |
+| local judge 01:25–01:31 | 6 | 4.33% / 4.54% | 5.29% / 5.37% |
+
+平均值是窗口内每分钟 Average 的均值；最大值取每分钟 Maximum 的最大值。完整数值见 [metric-summary.json](assets/metric-summary.json)。短暂 pull 峰值可能被一分钟聚合隐藏，采集与 pull 重叠，空闲只有一个样本，单会话不能代表生产吞吐量。
+
+### 清理状态
+
+本次已停止 Agent 会话，并核实 AgentCore Runtime、Fargate 任务、EFS、NAT Gateway、Elastic IP、负载均衡和实验日志组已删除。AWS 管理的 AgentCore 网卡仍占用私有子网与安全组，VPC 的最后清理尚在等待服务释放网卡；这些剩余网络资源不产生独立使用费。清理状态与证据目录保留在实验记录中。
+
+首次 destroy 仍在后台运行，记录于 `examples/pull-judge/.work/cloud/down.log`。后续有限重试进程等待首次 destroy 结束后继续处理残余网络资源；认证过期或机器休眠可能影响完成，不能将“后台运行”写作“已全部删除”。复查入口为 `bash scripts/down.sh check`。账户共享的 `AWSServiceRoleForBedrockAgentCoreNetwork` 有意保留。
+
+完整证据归档：`examples/pull-judge/.work/cloud-evidence-20261028.tar.gz`，包括三个快照、四次 judge、响应、截图和指标；不包含 client 配置、token 或 TLS 私钥。GitHub 镜像的匿名读取已通过验证。相对旧基线 `2ad7220`，所有跟踪变更均为新增文件；旧文章和 demo 文件无修改。
 
 参考：[ECS 服务指标](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html)、[Container Insights 指标](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-metrics-ECS.html)。

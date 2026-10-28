@@ -1,0 +1,2219 @@
+[
+  {
+    "source": "judge-A.json",
+    "sha256": "8a37731a3d09439cd07ccca839eee20ed1f715f6e74123435d22a1edeb35b43d",
+    "header": {
+      "t": "header",
+      "schema": "sj/1",
+      "conversation": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "session": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "run": 1,
+      "stage": "close",
+      "head": {
+        "round": 2,
+        "digest": "0a6189b4644b9f336c32c2500a0e6a7a8b3398738edbe28eb30cc5d2f883d3a9"
+      },
+      "parser": "v1",
+      "policy": "v1+idle=10m0s",
+      "evaluator": {
+        "name": "asz",
+        "kind": "computed",
+        "program": "asz",
+        "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+      },
+      "started": "2026-10-28T01:26:52Z",
+      "finished": "2026-10-28T01:26:52Z",
+      "status": "partial",
+      "summary": {
+        "targets": 1,
+        "achieved": 1,
+        "partly": 0,
+        "not_achieved": 0,
+        "cannot_verify": 0,
+        "usage": {
+          "in": 3568,
+          "out": 270
+        },
+        "avoidable": {
+          "in": 984,
+          "out": 122
+        },
+        "avoidable_by_subtasks": {},
+        "avoidable_cause_unknown": {},
+        "unpriced": 3,
+        "score": {
+          "achievement": 1,
+          "final": 1,
+          "judged": 1,
+          "efficiency": 0.7118,
+          "reviewed": 1,
+          "delivered": 1,
+          "unit": "tokens"
+        },
+        "goals": [
+          {
+            "goal": "g1",
+            "main": "t1",
+            "worst": "achieved",
+            "first": {
+              "target": "t1",
+              "source": "achievement",
+              "at": "call/01a18017-58e1-7732-a135-5c374719a8df",
+              "ref": {
+                "seq": 2,
+                "row": 5
+              },
+              "problem": "The agent issued validate_config in the same batch as write_file, so validation ran against a file that did not yet exist and failed.",
+              "explanation": "Validation depends on the write having landed, but the two calls were made as independent parallel tool uses from one model call.",
+              "improvement": "Issue the validation only after the write_file result returns, since it depends on that result.",
+              "cite": [
+                {
+                  "node": "tool/tooluse_CW2VtTb5oniwEUwpidtxyU",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 3
+                  }
+                },
+                {
+                  "node": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 4
+                  }
+                }
+              ]
+            },
+            "score_main": 1,
+            "score_mean": 1
+          }
+        ],
+        "judging": {
+          "usage": {
+            "in": 18831,
+            "out": 6264,
+            "cache_read": 116613,
+            "cache_write": 24309
+          },
+          "unpriced": 3
+        },
+        "judging_reported_usd": 0.82874325,
+        "judging_ms": 128751
+      }
+    },
+    "stages": [
+      {
+        "stage": "ledger",
+        "status": "complete",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      },
+      {
+        "stage": "targets",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "achievement",
+        "status": "partial",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "subtasks",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude"
+        }
+      },
+      {
+        "stage": "efficiency",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "close",
+        "status": "partial",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      }
+    ],
+    "targets": [
+      {
+        "t": "target",
+        "id": "t1",
+        "statement": "Produce a validated staging configuration file for release demo-v1 at configs/staging.json, with two replicas and a 300-second idle timeout, without deploying it.",
+        "criteria": [
+          {
+            "id": "t1.c1",
+            "text": "The configuration is for release demo-v1 and the staging environment"
+          },
+          {
+            "id": "t1.c2",
+            "text": "It specifies two replicas"
+          },
+          {
+            "id": "t1.c3",
+            "text": "It specifies an idle timeout of 300 seconds"
+          },
+          {
+            "id": "t1.c4",
+            "text": "It is saved at configs/staging.json"
+          },
+          {
+            "id": "t1.c5",
+            "text": "It is validated and passes validation"
+          },
+          {
+            "id": "t1.c6",
+            "text": "No deployment is performed"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-58ab-7280-8248-6562a27cee44"
+        ],
+        "cite": [
+          {
+            "node": "input/2/2",
+            "ref": {
+              "seq": 2,
+              "row": 2
+            }
+          }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "t": "outcome",
+        "target": "t1",
+        "statement": "Produce a validated staging configuration file for release demo-v1 at configs/staging.json, with two replicas and a 300-second idle timeout, without deploying it.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 6,
+        "criteria": 6,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 3568,
+            "out": 270
+          },
+          "unpriced": 3
+        },
+        "avoidable": {
+          "usage": {
+            "in": 984,
+            "out": 122
+          },
+          "unpriced": 1
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 4102,
+        "avoidable_span_ms": 1984,
+        "class": "achieved",
+        "standing": [
+          "t1.e1",
+          "t1.e2"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "verification",
+            "cost": {
+              "usage": {
+                "in": 1216,
+                "out": 83
+              },
+              "unpriced": 1
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "source": "judge-B.json",
+    "sha256": "b5ddcf108355dea4d7ad59045e926c90addc4a4c8bddd452489751d82edaae85",
+    "header": {
+      "t": "header",
+      "schema": "sj/1",
+      "conversation": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "session": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "run": 1,
+      "stage": "close",
+      "head": {
+        "round": 6,
+        "digest": "93385cb80a4f78f3e87ebd7bc092ebd5b9c339e34a47249bf1367ab2e0e3353f"
+      },
+      "parser": "v1",
+      "policy": "v1+idle=10m0s",
+      "evaluator": {
+        "name": "asz",
+        "kind": "computed",
+        "program": "asz",
+        "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+      },
+      "started": "2026-10-28T01:31:35Z",
+      "finished": "2026-10-28T01:31:35Z",
+      "status": "complete",
+      "summary": {
+        "targets": 4,
+        "achieved": 3,
+        "partly": 1,
+        "not_achieved": 0,
+        "cannot_verify": 0,
+        "usage": {
+          "in": 37731,
+          "out": 1496
+        },
+        "avoidable": {
+          "in": 10227,
+          "out": 515
+        },
+        "avoidable_by_subtasks": {},
+        "avoidable_cause_unknown": {},
+        "unpriced": 15,
+        "score": {
+          "achievement": 0.8125,
+          "final": 0.75,
+          "judged": 4,
+          "efficiency": 0.7262,
+          "reviewed": 1,
+          "delivered": 0.8125,
+          "unit": "tokens"
+        },
+        "goals": [
+          {
+            "goal": "g1",
+            "worst": "contradicted",
+            "first": {
+              "target": "t1",
+              "source": "achievement",
+              "at": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+              "ref": {
+                "seq": 4,
+                "row": 6,
+                "block": 4
+              },
+              "problem": "validate_config was issued in the same batch as the write_file it depended on and failed because the file did not exist yet.",
+              "explanation": "The agent ran dependent tool calls in parallel, so the validator ran before the write landed.",
+              "improvement": "Run validate_config only after the write_file result has returned.",
+              "cite": [
+                {
+                  "node": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 4
+                  }
+                },
+                {
+                  "node": "tool/tooluse_CW2VtTb5oniwEUwpidtxyU",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 3
+                  }
+                }
+              ]
+            },
+            "score_mean": 0.75
+          }
+        ],
+        "judging": {
+          "usage": {
+            "in": 25342,
+            "out": 27052,
+            "cache_read": 170121,
+            "cache_write": 53009
+          },
+          "unpriced": 3
+        },
+        "judging_reported_usd": 2.45629015,
+        "judging_ms": 410908
+      }
+    },
+    "stages": [
+      {
+        "stage": "ledger",
+        "status": "complete",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      },
+      {
+        "stage": "targets",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "achievement",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "subtasks",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude"
+        }
+      },
+      {
+        "stage": "efficiency",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "close",
+        "status": "complete",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      }
+    ],
+    "targets": [
+      {
+        "t": "target",
+        "id": "t1",
+        "statement": "A validated staging configuration for release demo-v1 is saved at configs/staging.json with two replicas and an idle timeout of 600 seconds, without deploying.",
+        "criteria": [
+          {
+            "id": "t1.c1",
+            "text": "configs/staging.json exists with release demo-v1, environment staging, two replicas"
+          },
+          {
+            "id": "t1.c2",
+            "text": "idle timeout is 600 seconds (changed from the original 300)"
+          },
+          {
+            "id": "t1.c3",
+            "text": "the configuration is validated after the update"
+          },
+          {
+            "id": "t1.c4",
+            "text": "no deployment is made as part of this work"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-58ab-7280-8248-6562a27cee44",
+          "talk/main/01a18017-e879-7137-b0d8-47ac168013fa"
+        ],
+        "cite": [
+          {
+            "node": "input/2/2",
+            "ref": {
+              "seq": 2,
+              "row": 2
+            }
+          },
+          {
+            "node": "input/14/1",
+            "ref": {
+              "seq": 14,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t2",
+        "statement": "The release bundle is built from the validated staging configuration, deployed to staging, and the staging deployment is queried to verify the release, replica count and timeout.",
+        "criteria": [
+          {
+            "id": "t2.c1",
+            "text": "a release bundle is built from the validated configs/staging.json"
+          },
+          {
+            "id": "t2.c2",
+            "text": "the bundle is deployed to staging"
+          },
+          {
+            "id": "t2.c3",
+            "text": "staging is queried and the release, replica count and timeout are verified against the configuration"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-f89f-746a-854f-898b7c84e6af"
+        ],
+        "cite": [
+          {
+            "node": "input/28/1",
+            "ref": {
+              "seq": 28,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t3",
+        "statement": "A production release bundle for demo-v1 with the same replica count and timeout is prepared and deployed to production, with a report of which parts succeeded and which did not.",
+        "criteria": [
+          {
+            "id": "t3.c1",
+            "text": "a production bundle for demo-v1 is prepared with two replicas and a 600 second timeout"
+          },
+          {
+            "id": "t3.c2",
+            "text": "a deployment to production is attempted"
+          },
+          {
+            "id": "t3.c3",
+            "text": "the reply states which parts succeeded and which did not"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-0dc9-7595-96ab-1574fc810624"
+        ],
+        "cite": [
+          {
+            "node": "input/43/1",
+            "ref": {
+              "seq": 43,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t4",
+        "statement": "The staging release is submitted for acceptance, its approval status is confirmed, and the request ID is kept for follow-up.",
+        "criteria": [
+          {
+            "id": "t4.c1",
+            "text": "an acceptance request is submitted for the staging release"
+          },
+          {
+            "id": "t4.c2",
+            "text": "the reply says whether the release has been approved"
+          },
+          {
+            "id": "t4.c3",
+            "text": "the acceptance request ID is reported"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-2fe8-737a-89c5-b846d4e7abc5"
+        ],
+        "cite": [
+          {
+            "node": "input/65/1",
+            "ref": {
+              "seq": 65,
+              "row": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "t": "outcome",
+        "target": "t1",
+        "statement": "A validated staging configuration for release demo-v1 is saved at configs/staging.json with two replicas and an idle timeout of 600 seconds, without deploying.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 4,
+        "criteria": 4,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8734,
+            "out": 508
+          },
+          "unpriced": 6
+        },
+        "avoidable": {
+          "usage": {
+            "in": 4166,
+            "out": 292
+          },
+          "unpriced": 3
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 7767,
+        "avoidable_span_ms": 4695,
+        "class": "achieved",
+        "standing": [
+          "t1.e3",
+          "t1.e4"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "avoidable_attempt",
+            "cause": "main",
+            "cost": {
+              "usage": {
+                "in": 1471,
+                "out": 71
+              },
+              "unpriced": 1
+            }
+          },
+          {
+            "work": "verification",
+            "cost": {
+              "usage": {
+                "in": 1216,
+                "out": 83
+              },
+              "unpriced": 1
+            }
+          },
+          {
+            "work": "repeated",
+            "cause": "main",
+            "cost": {
+              "usage": {
+                "in": 1711,
+                "out": 99
+              },
+              "unpriced": 1
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o1"
+          },
+          {
+            "id": "o2"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t2",
+        "statement": "The release bundle is built from the validated staging configuration, deployed to staging, and the staging deployment is queried to verify the release, replica count and timeout.",
+        "status": "closed",
+        "level": "partly",
+        "basis": "observed_result",
+        "met": 1,
+        "criteria": 3,
+        "unknown": 1,
+        "contradicted": 1,
+        "cost": {
+          "usage": {
+            "in": 7012,
+            "out": 345
+          },
+          "unpriced": 3
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 4924,
+        "avoidable_span_ms": 0,
+        "class": "contradicted",
+        "standing": [
+          "t2.e1",
+          "t2.e2",
+          "t2.e3"
+        ],
+        "score_record": 0.25,
+        "score_final": 0,
+        "operations": [
+          {
+            "id": "o3"
+          },
+          {
+            "id": "o4"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t3",
+        "statement": "A production release bundle for demo-v1 with the same replica count and timeout is prepared and deployed to production, with a report of which parts succeeded and which did not.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 3,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 13672,
+            "out": 499
+          },
+          "unpriced": 4
+        },
+        "avoidable": {
+          "usage": {
+            "in": 6061,
+            "out": 223
+          },
+          "unpriced": 2
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 8244,
+        "avoidable_span_ms": 4772,
+        "class": "achieved",
+        "standing": [
+          "t3.e1",
+          "t3.e2",
+          "t3.e3"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "repeated",
+            "cause": "main",
+            "cost": {
+              "usage": {
+                "in": 3227,
+                "out": 131
+              },
+              "unpriced": 1
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o5"
+          },
+          {
+            "id": "o6"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t4",
+        "statement": "The staging release is submitted for acceptance, its approval status is confirmed, and the request ID is kept for follow-up.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 3,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8313,
+            "out": 144
+          },
+          "unpriced": 2
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 2825,
+        "avoidable_span_ms": 0,
+        "class": "achieved",
+        "standing": [
+          "t4.e1",
+          "t4.e2"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "operations": [
+          {
+            "id": "o7"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "source": "judge-C.json",
+    "sha256": "90e609580d4a0602fa5f00e2dbd856c7c4e2fe7ff4bf331cc33159b3a2fbf45d",
+    "header": {
+      "t": "header",
+      "schema": "sj/1",
+      "conversation": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "session": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "run": 1,
+      "stage": "close",
+      "head": {
+        "round": 7,
+        "digest": "2d3e486210e6fc676cd718a5df082986d85931bea02a1ec8b0fa5955c0bcc0cc"
+      },
+      "parser": "v1",
+      "policy": "v1+idle=10m0s",
+      "evaluator": {
+        "name": "asz",
+        "kind": "computed",
+        "program": "asz",
+        "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+      },
+      "started": "2026-10-28T01:31:49Z",
+      "finished": "2026-10-28T01:31:49Z",
+      "status": "partial",
+      "summary": {
+        "targets": 6,
+        "achieved": 3,
+        "partly": 3,
+        "not_achieved": 0,
+        "cannot_verify": 0,
+        "usage": {
+          "in": 46694,
+          "out": 1840
+        },
+        "avoidable": {
+          "in": 9506,
+          "out": 446
+        },
+        "avoidable_by_subtasks": {},
+        "avoidable_cause_unknown": {},
+        "unpriced": 17,
+        "score": {
+          "achievement": 0.83,
+          "final": 0.75,
+          "judged": 5,
+          "efficiency": 0.7949,
+          "reviewed": 1,
+          "delivered": 0.6567,
+          "unit": "tokens"
+        },
+        "goals": [
+          {
+            "goal": "g1",
+            "worst": "contradicted",
+            "first": {
+              "target": "t1",
+              "source": "achievement",
+              "at": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+              "ref": {
+                "seq": 4,
+                "row": 6,
+                "block": 4
+              },
+              "problem": "validate_config was issued in the same batch as the write that created the file, so it failed with file not found.",
+              "explanation": "The agent batched dependent tool calls, and the validator ran before the write landed.",
+              "improvement": "Issue validation only after the write result returns.",
+              "cite": [
+                {
+                  "node": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 4
+                  }
+                },
+                {
+                  "node": "tool/tooluse_CW2VtTb5oniwEUwpidtxyU",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 3
+                  }
+                }
+              ]
+            },
+            "score_mean": 0.75
+          }
+        ],
+        "judging": {
+          "usage": {
+            "in": 28928,
+            "out": 29267,
+            "cache_read": 151249,
+            "cache_write": 54379
+          },
+          "unpriced": 3
+        },
+        "judging_reported_usd": 2.5741714499999997,
+        "judging_ms": 425268
+      }
+    },
+    "stages": [
+      {
+        "stage": "ledger",
+        "status": "complete",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      },
+      {
+        "stage": "targets",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "achievement",
+        "status": "partial",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "subtasks",
+        "status": "complete",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude"
+        }
+      },
+      {
+        "stage": "efficiency",
+        "status": "partial",
+        "evaluator": {
+          "name": "claude",
+          "kind": "cli",
+          "program": "claude",
+          "model": "claude-fable-5-1"
+        }
+      },
+      {
+        "stage": "close",
+        "status": "partial",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      }
+    ],
+    "targets": [
+      {
+        "t": "target",
+        "id": "t1",
+        "statement": "A validated staging configuration for release demo-v1 saved at configs/staging.json with two replicas and an idle timeout of 600 seconds, without deploying.",
+        "criteria": [
+          {
+            "id": "t1.c1",
+            "text": "configs/staging.json exists for release demo-v1 in the staging environment"
+          },
+          {
+            "id": "t1.c2",
+            "text": "replica count is 2"
+          },
+          {
+            "id": "t1.c3",
+            "text": "idle timeout is 600 seconds (changed from the original 300)"
+          },
+          {
+            "id": "t1.c4",
+            "text": "the configuration is validated after the update"
+          },
+          {
+            "id": "t1.c5",
+            "text": "no deployment is made as part of this work"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-58ab-7280-8248-6562a27cee44",
+          "talk/main/01a18017-e879-7137-b0d8-47ac168013fa"
+        ],
+        "cite": [
+          {
+            "node": "input/2/2",
+            "ref": {
+              "seq": 2,
+              "row": 2
+            }
+          },
+          {
+            "node": "input/14/1",
+            "ref": {
+              "seq": 14,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t2",
+        "statement": "The release bundle is built from the validated staging configuration, deployed to staging, and staging is queried to verify the release, replica count and timeout.",
+        "criteria": [
+          {
+            "id": "t2.c1",
+            "text": "a release bundle is built from the validated configs/staging.json"
+          },
+          {
+            "id": "t2.c2",
+            "text": "the bundle is deployed to staging"
+          },
+          {
+            "id": "t2.c3",
+            "text": "staging is queried after deployment"
+          },
+          {
+            "id": "t2.c4",
+            "text": "the queried release, replica count and timeout are reported against the expected demo-v1, 2 replicas, 600 seconds"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-f89f-746a-854f-898b7c84e6af"
+        ],
+        "cite": [
+          {
+            "node": "input/28/1",
+            "ref": {
+              "seq": 28,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t3",
+        "statement": "A production release bundle for demo-v1 with the same replica count and timeout is prepared and deployed to production, with a report of which parts succeeded and which did not.",
+        "criteria": [
+          {
+            "id": "t3.c1",
+            "text": "a production bundle for demo-v1 is prepared with 2 replicas and a 600 second timeout"
+          },
+          {
+            "id": "t3.c2",
+            "text": "a production deployment is attempted"
+          },
+          {
+            "id": "t3.c3",
+            "text": "the person is told which parts succeeded and which failed"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-0dc9-7595-96ab-1574fc810624"
+        ],
+        "cite": [
+          {
+            "node": "input/43/1",
+            "ref": {
+              "seq": 43,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t4",
+        "statement": "The staging release is submitted for acceptance, its approval status is confirmed, and the request ID is kept for follow-up.",
+        "criteria": [
+          {
+            "id": "t4.c1",
+            "text": "an acceptance request is submitted for the staging release"
+          },
+          {
+            "id": "t4.c2",
+            "text": "the approval status is reported"
+          },
+          {
+            "id": "t4.c3",
+            "text": "the acceptance request ID is given to the person"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-2fe8-737a-89c5-b846d4e7abc5"
+        ],
+        "cite": [
+          {
+            "node": "input/65/1",
+            "ref": {
+              "seq": 65,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t5",
+        "statement": "An implementation plan for staging autoscaling from two to four replicas, based on inspecting the current configuration, with no changes made before the person confirms.",
+        "criteria": [
+          {
+            "id": "t5.c1",
+            "text": "the current staging configuration is inspected"
+          },
+          {
+            "id": "t5.c2",
+            "text": "an implementation plan for autoscaling with min 2 and max 4 replicas is proposed"
+          },
+          {
+            "id": "t5.c3",
+            "text": "nothing is changed before the person confirms"
+          }
+        ],
+        "status": "cancelled",
+        "talks": [
+          "talk/main/01a1801a-af97-72ac-b755-055a30606849",
+          "talk/main/01a1801a-b9d9-7357-a498-12b1439d3edf"
+        ],
+        "cite": [
+          {
+            "node": "input/74/1",
+            "ref": {
+              "seq": 74,
+              "row": 1
+            }
+          },
+          {
+            "node": "input/78/1",
+            "ref": {
+              "seq": 78,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t6",
+        "statement": "A summary of what was completed, what failed, and what still cannot be verified across the session, with the fixed replica count kept.",
+        "criteria": [
+          {
+            "id": "t6.c1",
+            "text": "the summary lists what was completed"
+          },
+          {
+            "id": "t6.c2",
+            "text": "the summary lists what failed"
+          },
+          {
+            "id": "t6.c3",
+            "text": "the summary lists what still cannot be verified"
+          },
+          {
+            "id": "t6.c4",
+            "text": "the fixed replica count of 2 is kept, autoscaling is not implemented"
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a1801a-b9d9-7357-a498-12b1439d3edf"
+        ],
+        "cite": [
+          {
+            "node": "input/78/1",
+            "ref": {
+              "seq": 78,
+              "row": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "t": "outcome",
+        "target": "t1",
+        "statement": "A validated staging configuration for release demo-v1 saved at configs/staging.json with two replicas and an idle timeout of 600 seconds, without deploying.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 5,
+        "criteria": 5,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8734,
+            "out": 508
+          },
+          "unpriced": 6
+        },
+        "avoidable": {
+          "usage": {
+            "in": 6279,
+            "out": 315
+          },
+          "unpriced": 4
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 7767,
+        "avoidable_span_ms": 4388,
+        "class": "achieved",
+        "standing": [
+          "t1.e3",
+          "t1.e4"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "repair_own_mistake",
+            "cause": "main",
+            "cost": {
+              "usage": {
+                "in": 2927,
+                "out": 182
+              },
+              "unpriced": 2
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o1"
+          },
+          {
+            "id": "o2"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t2",
+        "statement": "The release bundle is built from the validated staging configuration, deployed to staging, and staging is queried to verify the release, replica count and timeout.",
+        "status": "closed",
+        "level": "partly",
+        "basis": "observed_result",
+        "met": 2,
+        "criteria": 4,
+        "unknown": 0,
+        "contradicted": 1,
+        "cost": {
+          "usage": {
+            "in": 7012,
+            "out": 345
+          },
+          "unpriced": 3
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 4924,
+        "avoidable_span_ms": 0,
+        "class": "contradicted",
+        "standing": [
+          "t2.e1",
+          "t2.e2",
+          "t2.e3"
+        ],
+        "score_record": 0.4,
+        "score_final": 0,
+        "operations": [
+          {
+            "id": "o3"
+          },
+          {
+            "id": "o4"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t3",
+        "statement": "A production release bundle for demo-v1 with the same replica count and timeout is prepared and deployed to production, with a report of which parts succeeded and which did not.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 3,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 13672,
+            "out": 499
+          },
+          "unpriced": 4
+        },
+        "avoidable": {
+          "usage": {
+            "in": 3227,
+            "out": 131
+          },
+          "unpriced": 1
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 8244,
+        "avoidable_span_ms": 2164,
+        "class": "achieved",
+        "standing": [
+          "t3.e1",
+          "t3.e2",
+          "t3.e3"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "repair_own_mistake",
+            "cause": "main",
+            "cost": {
+              "usage": {
+                "in": 3227,
+                "out": 131
+              },
+              "unpriced": 1
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o5"
+          },
+          {
+            "id": "o6"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t4",
+        "statement": "The staging release is submitted for acceptance, its approval status is confirmed, and the request ID is kept for follow-up.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 3,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8313,
+            "out": 144
+          },
+          "unpriced": 2
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 2825,
+        "avoidable_span_ms": 0,
+        "class": "achieved",
+        "standing": [
+          "t4.e1",
+          "t4.e2"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "operations": [
+          {
+            "id": "o7"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t5",
+        "statement": "An implementation plan for staging autoscaling from two to four replicas, based on inspecting the current configuration, with no changes made before the person confirms.",
+        "status": "cancelled",
+        "level": "partly",
+        "basis": "delivered_answer",
+        "met": 1,
+        "criteria": 3,
+        "unknown": 2,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 4383,
+            "out": 163
+          },
+          "unpriced": 1
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 3773,
+        "avoidable_span_ms": 0,
+        "class": "cancelled",
+        "standing": [
+          "t5.e1"
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t6",
+        "statement": "A summary of what was completed, what failed, and what still cannot be verified across the session, with the fixed replica count kept.",
+        "status": "closed",
+        "level": "partly",
+        "basis": "delivered_answer",
+        "met": 3,
+        "criteria": 4,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 4580,
+            "out": 181
+          },
+          "unpriced": 1
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 2032,
+        "avoidable_span_ms": 0,
+        "class": "contradicted",
+        "standing": [
+          "t6.e1"
+        ],
+        "score_record": 0.75,
+        "score_final": 0.75
+      }
+    ]
+  },
+  {
+    "source": "judge-C-codex.json",
+    "sha256": "6d86b1bb09d9ed1c0efa2827958c6f51f926524141e81c41fda6f4ba1f2578d6",
+    "header": {
+      "t": "header",
+      "schema": "sj/1",
+      "conversation": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "session": "ls-asz-pull-judge-release-880151c7597443b1be45eeba5-a1c21c20ee12",
+      "run": 2,
+      "stage": "close",
+      "head": {
+        "round": 7,
+        "digest": "2d3e486210e6fc676cd718a5df082986d85931bea02a1ec8b0fa5955c0bcc0cc"
+      },
+      "parser": "v1",
+      "policy": "v1+idle=10m0s",
+      "evaluator": {
+        "name": "asz",
+        "kind": "computed",
+        "program": "asz",
+        "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+      },
+      "started": "2026-10-28T01:38:11Z",
+      "finished": "2026-10-28T01:38:11Z",
+      "status": "partial",
+      "summary": {
+        "targets": 6,
+        "achieved": 2,
+        "partly": 4,
+        "not_achieved": 0,
+        "cannot_verify": 0,
+        "usage": {
+          "in": 46694,
+          "out": 1840
+        },
+        "avoidable": {
+          "in": 2834,
+          "out": 92
+        },
+        "avoidable_by_subtasks": {},
+        "avoidable_cause_unknown": {},
+        "unpriced": 17,
+        "score": {
+          "achievement": 0.8,
+          "final": 0.8,
+          "judged": 5,
+          "efficiency": 0.9397,
+          "reviewed": 1,
+          "delivered": 0.4824,
+          "unit": "tokens"
+        },
+        "goals": [
+          {
+            "goal": "g1",
+            "worst": "contradicted",
+            "first": {
+              "t": "finding",
+              "target": "t1",
+              "source": "asz",
+              "at": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+              "ref": {
+                "seq": 4,
+                "row": 6,
+                "block": 4
+              },
+              "problem": "round t1.r1 of rework began, triggered by verification, cause agent_error",
+              "cite": [
+                {
+                  "node": "tool/tooluse_bv1yzv9o2u77TXQyJEjfos",
+                  "ref": {
+                    "seq": 4,
+                    "row": 6,
+                    "block": 4
+                  }
+                }
+              ]
+            },
+            "score_mean": 0.8
+          },
+          {
+            "goal": "g2",
+            "worst": "cancelled",
+            "first": {
+              "target": "t5",
+              "source": "achievement",
+              "at": "msg/76/3:0",
+              "ref": {
+                "seq": 76,
+                "row": 3,
+                "block": 0
+              },
+              "problem": "The agent proposed schema changes without inspecting configuration or supported autoscaling fields.",
+              "explanation": "It asserted a configuration limitation while listing inspection as future work.",
+              "improvement": "Inspect the configuration and supported schema before proposing implementation details.",
+              "cite": [
+                {
+                  "node": "msg/76/3:0",
+                  "ref": {
+                    "seq": 76,
+                    "row": 3,
+                    "block": 0
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "judging": {
+          "usage": {
+            "in": 95415,
+            "out": 12369,
+            "cache_read": 196352
+          },
+          "unpriced": 3
+        },
+        "judging_ms": 223389
+      }
+    },
+    "stages": [
+      {
+        "stage": "ledger",
+        "status": "complete",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      },
+      {
+        "stage": "targets",
+        "status": "partial",
+        "evaluator": {
+          "name": "codex",
+          "kind": "cli",
+          "program": "codex"
+        }
+      },
+      {
+        "stage": "achievement",
+        "status": "partial",
+        "evaluator": {
+          "name": "codex",
+          "kind": "cli",
+          "program": "codex"
+        }
+      },
+      {
+        "stage": "subtasks",
+        "status": "complete",
+        "evaluator": {
+          "name": "codex",
+          "kind": "cli",
+          "program": "codex"
+        }
+      },
+      {
+        "stage": "efficiency",
+        "status": "complete",
+        "evaluator": {
+          "name": "codex",
+          "kind": "cli",
+          "program": "codex"
+        }
+      },
+      {
+        "stage": "close",
+        "status": "partial",
+        "evaluator": {
+          "name": "asz",
+          "kind": "computed",
+          "program": "asz",
+          "version": "341f8c0c9cb8245669cbe45ff5393f6972e05616"
+        }
+      }
+    ],
+    "targets": [
+      {
+        "t": "target",
+        "id": "t1",
+        "statement": "Prepare and validate configs/staging.json for release demo-v1 with two replicas and a 600-second idle timeout.",
+        "criteria": [
+          {
+            "id": "t1.c1",
+            "text": "Save the staging configuration as configs/staging.json."
+          },
+          {
+            "id": "t1.c2",
+            "text": "Use release demo-v1, two replicas, and an idle timeout of 600 seconds."
+          },
+          {
+            "id": "t1.c3",
+            "text": "Validate the updated configuration."
+          },
+          {
+            "id": "t1.c4",
+            "text": "Do not deploy during configuration preparation."
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-58ab-7280-8248-6562a27cee44",
+          "talk/main/01a18017-e879-7137-b0d8-47ac168013fa"
+        ],
+        "cite": [
+          {
+            "node": "input/2/2",
+            "ref": {
+              "seq": 2,
+              "row": 2
+            }
+          },
+          {
+            "node": "input/14/1",
+            "ref": {
+              "seq": 14,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t2",
+        "statement": "Build and deploy the validated release bundle to staging and verify its deployed settings.",
+        "criteria": [
+          {
+            "id": "t2.c1",
+            "text": "Build the release bundle from the validated configuration."
+          },
+          {
+            "id": "t2.c2",
+            "text": "Deploy the bundle to staging."
+          },
+          {
+            "id": "t2.c3",
+            "text": "Query staging and verify the release, replica count, and timeout."
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18017-f89f-746a-854f-898b7c84e6af"
+        ],
+        "cite": [
+          {
+            "node": "input/28/1",
+            "ref": {
+              "seq": 28,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t3",
+        "statement": "Prepare and deploy a production release bundle for demo-v1 and report which parts succeeded or failed.",
+        "criteria": [
+          {
+            "id": "t3.c1",
+            "text": "Prepare a production bundle for demo-v1 with two replicas and a 600-second idle timeout."
+          },
+          {
+            "id": "t3.c2",
+            "text": "Attempt deployment to production."
+          },
+          {
+            "id": "t3.c3",
+            "text": "Report which parts succeeded and which did not."
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-0dc9-7595-96ab-1574fc810624"
+        ],
+        "cite": [
+          {
+            "node": "input/43/1",
+            "ref": {
+              "seq": 43,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t4",
+        "statement": "Submit the staging release for acceptance, determine its approval status, and retain the request ID.",
+        "criteria": [
+          {
+            "id": "t4.c1",
+            "text": "Submit the staging release for acceptance."
+          },
+          {
+            "id": "t4.c2",
+            "text": "Confirm whether it has been approved."
+          },
+          {
+            "id": "t4.c3",
+            "text": "Keep the acceptance request ID for follow-up."
+          }
+        ],
+        "status": "closed",
+        "talks": [
+          "talk/main/01a18018-2fe8-737a-89c5-b846d4e7abc5"
+        ],
+        "cite": [
+          {
+            "node": "input/65/1",
+            "ref": {
+              "seq": 65,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t5",
+        "statement": "Inspect staging configuration and plan autoscaling from two to four replicas, with implementation subsequently cancelled.",
+        "criteria": [
+          {
+            "id": "t5.c1",
+            "text": "Inspect the current configuration and propose an implementation plan."
+          },
+          {
+            "id": "t5.c2",
+            "text": "Wait for confirmation before making changes."
+          },
+          {
+            "id": "t5.c3",
+            "text": "Cancel autoscaling implementation and keep the current fixed replica count."
+          }
+        ],
+        "status": "cancelled",
+        "talks": [
+          "talk/main/01a1801a-af97-72ac-b755-055a30606849",
+          "talk/main/01a1801a-b9d9-7357-a498-12b1439d3edf"
+        ],
+        "cite": [
+          {
+            "node": "input/74/1",
+            "ref": {
+              "seq": 74,
+              "row": 1
+            }
+          },
+          {
+            "node": "input/78/1",
+            "ref": {
+              "seq": 78,
+              "row": 1
+            }
+          }
+        ]
+      },
+      {
+        "t": "target",
+        "id": "t6",
+        "statement": "Summarize the release work completed, failed, and still unverifiable.",
+        "criteria": [
+          {
+            "id": "t6.c1",
+            "text": "Identify what was completed."
+          },
+          {
+            "id": "t6.c2",
+            "text": "Identify what failed."
+          },
+          {
+            "id": "t6.c3",
+            "text": "Identify what still cannot be verified."
+          }
+        ],
+        "status": "open",
+        "talks": [
+          "talk/main/01a1801a-b9d9-7357-a498-12b1439d3edf"
+        ],
+        "cite": [
+          {
+            "node": "input/78/1",
+            "ref": {
+              "seq": 78,
+              "row": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outcomes": [
+      {
+        "t": "outcome",
+        "target": "t1",
+        "statement": "Prepare and validate configs/staging.json for release demo-v1 with two replicas and a 600-second idle timeout.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 4,
+        "criteria": 4,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8734,
+            "out": 508
+          },
+          "unpriced": 6
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 7767,
+        "avoidable_span_ms": 0,
+        "class": "achieved",
+        "standing": [
+          "t1.e2"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "useful",
+            "cost": {
+              "usage": {
+                "in": 1216,
+                "out": 83
+              },
+              "unpriced": 1
+            }
+          },
+          {
+            "work": "rework_requirement_change",
+            "cost": {
+              "usage": {
+                "in": 3182,
+                "out": 170
+              },
+              "unpriced": 2
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o1"
+          },
+          {
+            "id": "o2"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t2",
+        "statement": "Build and deploy the validated release bundle to staging and verify its deployed settings.",
+        "status": "closed",
+        "level": "partly",
+        "basis": "observed_result",
+        "met": 2,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 7012,
+            "out": 345
+          },
+          "unpriced": 3
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 4924,
+        "avoidable_span_ms": 0,
+        "class": "partly",
+        "standing": [
+          "t2.e1",
+          "t2.e2"
+        ],
+        "score_record": 0.6667,
+        "score_final": 0.6667,
+        "operations": [
+          {
+            "id": "o3"
+          },
+          {
+            "id": "o4"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t3",
+        "statement": "Prepare and deploy a production release bundle for demo-v1 and report which parts succeeded or failed.",
+        "status": "closed",
+        "level": "achieved",
+        "basis": "observed_result",
+        "met": 3,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 13672,
+            "out": 499
+          },
+          "unpriced": 4
+        },
+        "avoidable": {
+          "usage": {
+            "in": 2834,
+            "out": 92
+          },
+          "unpriced": 1
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 8244,
+        "avoidable_span_ms": 2608,
+        "class": "achieved",
+        "standing": [
+          "t3.e1",
+          "t3.e2",
+          "t3.e3"
+        ],
+        "score_record": 1,
+        "score_final": 1,
+        "rework": [
+          {
+            "work": "useful",
+            "cost": {
+              "usage": {
+                "in": 3227,
+                "out": 131
+              },
+              "unpriced": 1
+            }
+          }
+        ],
+        "operations": [
+          {
+            "id": "o5"
+          },
+          {
+            "id": "o6"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t4",
+        "statement": "Submit the staging release for acceptance, determine its approval status, and retain the request ID.",
+        "status": "closed",
+        "level": "partly",
+        "basis": "observed_result",
+        "met": 2,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 8313,
+            "out": 144
+          },
+          "unpriced": 2
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 2825,
+        "avoidable_span_ms": 0,
+        "class": "partly",
+        "standing": [
+          "t4.e1",
+          "t4.e2"
+        ],
+        "score_record": 0.6667,
+        "score_final": 0.6667,
+        "operations": [
+          {
+            "id": "o7"
+          }
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t5",
+        "statement": "Inspect staging configuration and plan autoscaling from two to four replicas, with implementation subsequently cancelled.",
+        "status": "cancelled",
+        "level": "partly",
+        "basis": "delivered_answer",
+        "met": 1,
+        "criteria": 3,
+        "unknown": 1,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 4383,
+            "out": 163
+          },
+          "unpriced": 1
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 3773,
+        "avoidable_span_ms": 0,
+        "class": "cancelled",
+        "standing": [
+          "t5.e1"
+        ]
+      },
+      {
+        "t": "outcome",
+        "target": "t6",
+        "statement": "Summarize the release work completed, failed, and still unverifiable.",
+        "status": "open",
+        "level": "partly",
+        "basis": "delivered_answer",
+        "met": 2,
+        "criteria": 3,
+        "unknown": 0,
+        "contradicted": 0,
+        "cost": {
+          "usage": {
+            "in": 4580,
+            "out": 181
+          },
+          "unpriced": 1
+        },
+        "avoidable": {
+          "usage": {}
+        },
+        "not_reviewed": {
+          "usage": {}
+        },
+        "avoidable_by_subtasks": {
+          "usage": {}
+        },
+        "avoidable_cause_unknown": {
+          "usage": {}
+        },
+        "span_ms": 2032,
+        "avoidable_span_ms": 0,
+        "class": "contradicted",
+        "standing": [
+          "t6.e1"
+        ],
+        "score_record": 0.6667,
+        "score_final": 0.6667
+      }
+    ]
+  }
+]
