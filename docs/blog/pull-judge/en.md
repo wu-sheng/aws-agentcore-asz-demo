@@ -1,6 +1,6 @@
 # Collect Cloud Sessions, Evaluate Locally: Analyzing AI Agents on Amazon Bedrock AgentCore with Apache SkyWalking AI Sessionizer
 
-Let's build a release assistant: ask it to change configuration, deploy an application, query the result, and explain what it completed. The agent runs on Amazon Bedrock AgentCore. Apache SkyWalking AI Sessionizer (`asz`) records its execution in the cloud. We pull those records onto a development machine, inspect them, and run a judge through a local CLI to check whether the agent met the requirements.
+This walkthrough uses a release assistant to demonstrate the full workflow: ask an agent to change configuration, deploy an application, and query the result, then check whether the work met the requirements. The agent runs on Amazon Bedrock AgentCore. Apache SkyWalking AI Sessionizer (`asz`) records its execution in the cloud. We pull those records onto a development machine, inspect them, and run a judge through a local CLI to check whether the agent met the requirements.
 
 We will follow one example through five steps: **design the agent → deploy and collect → pull and inspect → run the judge → read results against the goals.**
 
@@ -53,7 +53,7 @@ AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-pull-judge-agent:b3e872bfb9a26fbd
 
 This uses the image tested in this walkthrough. The script checks model access, copies the image into ECR, and creates the AgentCore Runtime, asz on Fargate, EFS, and networking. Infrastructure and model calls incur AWS charges. The deployment writes its resource manifest to `.work/cloud/resources.txt`.
 
-### How collection is connected
+### Collect execution records and file changes
 
 ```text
 Agent in AgentCore
@@ -70,7 +70,7 @@ The example configures two collection paths:
 - **Execution records:** LangGraph tracing sends user input, model responses, and tool calls to the asz receiver through `LANGSMITH_ENDPOINT`.
 - **File changes:** The asz recording component watches `write_file`, `build_release`, `deploy`, and `submit_acceptance`, writing changes to shared EFS for asz to read.
 
-This captures both what the agent said and what it changed. The agent calls Bedrock using its Runtime IAM role. Cloud asz collects the records; judging runs locally later.
+These paths preserve model responses, tool results, and file changes in the same conversation. The agent calls Bedrock using its Runtime IAM role. The cloud runs the agent and asz collection service; Claude Code or Codex runs on your local machine for evaluation.
 
 Now send the seven requests from section 1:
 
@@ -86,7 +86,7 @@ The script invokes the agent turn by turn in one AgentCore session, waits for co
 
 ## 3. Pull the records and inspect them locally
 
-Remote pull does one straightforward job: **copy a cloud conversation onto your machine**. Cloud collection continues, while your local copy preserves the version you pulled for viewing and evaluation.
+Remote pull copies a cloud conversation into a local snapshot. Cloud collection continues, while local viewing and evaluation use the fixed version you pulled.
 
 ### Connect to cloud asz
 
@@ -116,7 +116,7 @@ asz pull -list -remote demo
 asz pull demo/CONVERSATION_ID
 ```
 
-Replace `CONVERSATION_ID` with an ID from the list. The pull output provides `SNAPSHOT_TAG`; `checkpoints.json` also contains tags already pulled by the script. Later, use `demo/CONVERSATION_ID:SNAPSHOT_TAG` to select that exact data. Pulling again with no new records returns `unchanged`.
+Replace `CONVERSATION_ID` with an ID from the list. The pull output provides `SNAPSHOT_TAG`; `checkpoints.json` in the parent directory contains the A, B, and C tags already pulled by the script. Later, use `demo/CONVERSATION_ID:SNAPSHOT_TAG` to select that exact data. Pulling again with no new records returns `unchanged`.
 
 ### See what the agent actually did
 
@@ -136,7 +136,7 @@ This is the file change pulled from our cloud run:
 
 The final validation read 600, confirming the update. However, the record also shows an earlier validation running alongside the write, reading the old value, and requiring a retry. **The final result can be correct while the execution still contains avoidable rework.** The judge helps organize these findings.
 
-Viewing an existing snapshot does not require cloud asz to be online. Pull again when you need newer data.
+Viewing an existing snapshot does not require cloud asz to be online. Pull again when you need newer data. When finished viewing, press Ctrl+C to stop `asz view` and continue with the evaluation commands in the same directory.
 
 ## 4. Judge the design goals and generate an HTML report
 
@@ -146,7 +146,7 @@ The judge identifies tasks from the user's requests, then checks whether tool re
 
 Install and sign in to Claude Code, and make sure your terminal can run `claude`. asz starts it for evaluation; conversation content it reads goes to its model service. For Codex, replace `-evaluator claude` with `-evaluator codex` in the commands below.
 
-`bootstrap.sh` now pins the local CLI to `07a2d95` (#95), the merged HTML reporting change, so the commands below work directly. The cloud experiment and recording components used `341f8c0`; existing snapshots do not need to be collected again.
+The `bootstrap.sh` command in section 2 installs an asz CLI with HTML reporting support (commit `07a2d95`); no additional build is needed. The cloud experiment and recording components used `341f8c0`; existing snapshots do not need to be collected again.
 
 Continue in `.work/cloud-TIMESTAMP/client/`. The example's `scenarios/judge-goals.yaml` organizes the seven requests into six goals: configuration, staging deployment and verification, production deployment, acceptance, autoscaling and cancellation, and the final summary. Copy it into the current directory:
 
@@ -161,7 +161,7 @@ goals:
   - Build and deploy staging, then query it to verify the release, replica count and timeout.
 ```
 
-Use the complete six-goal file; this snippet only illustrates one entry. Write goals in your own words, preserving the requested result, such as verification after deployment rather than just attempting deployment.
+Use the complete file copied above, which contains six goals. For your own scenario, specify the expected result, such as querying after deployment to confirm the release, replica count, and timeout. This list organizes report tasks for comparison with the design in section 1.
 
 ### Run the evaluation
 
@@ -172,7 +172,7 @@ asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-Substitute your conversation ID and C snapshot tag. The command evaluates the local records, groups the identified tasks under our goals, and saves a run. It does not execute the agent's release tools again or require cloud asz to be online.
+Substitute your conversation ID and C snapshot tag. The command evaluates the local records and groups the identified tasks under our goals. Each evaluation is saved as a numbered record called a run. It does not execute the agent's release tools again or require cloud asz to be online.
 
 If a judge run already exists and you only want to organize it by this goal list, use that saved run:
 
@@ -181,11 +181,11 @@ asz judge -regroup 1 -goals goals.yaml -evaluator claude \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-Regrouping calls the evaluator and preserves the original evaluation. **`-goals` changes how results map to our goals; it does not rewrite existing criteria or scores to match an expected answer.** We still need to inspect those criteria and evidence. For this article, we regrouped existing run 1 on snapshot C and exported it with the new CLI.
+`-regroup` calls the evaluator to regroup existing tasks while preserving their criteria, evidence, and scores. **`-goals` provides a goal list, not scoring rules.** When reading the report, check whether the completion criteria identified by the judge match the original requests. The report shown here uses existing run 1 on snapshot C, regrouped under six goals and exported with the newer CLI.
 
-### Export and open the HTML
+### Export the HTML report and open it in a browser
 
-List the run numbers, then export the intended run:
+List the saved evaluations, then export the run you want to inspect. This example selects run 1; replace the number in `-run 1` to select another record:
 
 ```sh
 asz judge -list \
@@ -201,7 +201,7 @@ The new `-show` defaults to the latest closed run; `-run 1` selects run 1 explic
 
 ## 5. Review evaluation results in the browser
 
-The HTML page is now our main reading view. It presents a goal table, expandable task details, an overall assessment, and an overall result. Read individual tasks before the total score.
+Start by selecting a task in the Goals table, expand its completion criteria and evidence, then read the overall scores and summary. We will use this order to check the six goals from section 1.
 
 This example uses snapshot C from the same AgentCore experiment. The newer CLI presents the saved evaluation and groups it by our goal list; the agent execution records and achievement scores have not changed. The [HTML report](assets/judge-C.html) is included in the repository and can be saved and opened locally.
 
@@ -211,7 +211,7 @@ The table has **Goal, Target, Status, and Score** columns. A Goal is the result 
 
 ![Report overview: status, score, and detail links for six goals](assets/judge-overview.jpg)
 
-Start with staging configuration: it is marked achieved with 100. Staging deployment and verification is marked contradicted with zero. We can see that these need separate inspection without first decoding internal identifiers.
+Staging configuration is marked `achieved` with 100; staging deployment and verification is marked `contradicted` with zero. The first means the judge found the task completed. The second means the agent’s completion claim conflicts with the recorded evidence. Expand both tasks to see why.
 
 ### Second: Expand Criteria, Done, and Missing
 
@@ -229,15 +229,15 @@ This is the expanded staging deployment task. Criteria, completed work, and miss
 
 **Staging: deployment returned success, but verification was incomplete.** Done shows the built bundle and a successful deployment tool result with saved simulated state. Missing shows that the query ran alongside deployment, returned `not_deployed`, and was never repeated. Compare that with section 1's requirement to verify after deployment: the gap is clear.
 
-This task shows a final score of zero while retaining 40 by the achievement record. That describes partial work followed by a contradicted delivery conclusion. It does not mean nothing happened.
+The task shows two scores: 40 by the achievement record, and a final score of zero after accounting for the conflicting completion claim. Read both the build work in Done and the missing post-deployment verification in Missing.
 
 This is a remote pull snapshot. The HTML includes saved criteria and evidence excerpts but does not embed the original conversation steps. Use `asz view` from section 3 to inspect full tool requests, responses, and file changes.
 
 ### Third: Compare criteria and evidence with the original requirements
 
-Open the production task's Criteria. In this run, the evaluator defined one condition as attempting deployment. It therefore marked the task achieved even though the tool returned `denied` and `deployed: false`. Grouping it under our production goal does not automatically change that criterion to successful deployment.
+The production task illustrates a different issue: the judge’s completion criteria are weaker than the user’s request. Section 1 asks for deployment to production, but the evaluation defined one condition as attempting deployment. The tool returned `denied` and `deployed: false`, yet the report marked the task `achieved` because an attempt satisfied that condition.
 
-Keep two conclusions separate: **production deployment was not achieved; accurately reporting the denial was correct behavior.** Having criteria and evidence together makes this difference easier to see.
+Against the original request, the conclusions are: **production deployment was not completed; the agent correctly reported the denial.** Grouping the task under the production goal does not correct that loose criterion. Read the evaluation alongside the original request, Criteria, and tool evidence.
 
 Use the same approach for the remaining goals:
 
@@ -247,21 +247,32 @@ Use the same approach for the remaining goals:
 | Inspect before planning autoscaling, wait, then cancel | No autoscaling implementation, and the cancelled target is unscored. Fresh inspection before proposing the plan was still missing |
 | Summarize completed, failed, and unconfirmed work | The summary should include the unresolved staging verification |
 
-### Fourth: Read Overall assessment and Overall result
+### Fourth: Review overall scores, evaluation completeness, and the summary
 
-**Overall assessment** brings together scores, efficiency, and evaluation completeness. This run scored 83/100 by the achievement record and 75/100 after accounting for contradicted delivery conclusions. Efficiency was 79/100: with tokens as the unit, about 21% of reviewed cost was classified as avoidable. The 66% delivered measure describes target cost allocated to achieved targets. These measures differ; none is general model accuracy.
+**Overall assessment** summarizes scores and evaluation completeness. Read this run’s numbers as follows:
+
+| Value | Meaning |
+| --- | --- |
+| 83/100, by the achievement record | Score based on the record of completed and incomplete work |
+| 75/100, final score | Score after accounting for completion claims that conflict with the evidence |
+| 79/100, efficiency | With tokens as the unit, about 21% of reviewed usage was classified as avoidable work |
+| 66%, delivered | Share of target-attributed usage allocated to targets judged achieved; it does not mean 66% of tasks were completed |
+
+These numbers describe completion and execution efficiency in this run, not model accuracy on other tasks.
 
 This run also reports `grouping: the judge agreed with 0 of your 6 goals; 6 merged`. The original evaluation grouped all six tasks under one release goal, while our checklist separates them. This is a grouping difference, not six failed goals.
 
-This section also lists incomplete evaluation stages. Two judgments relying only on the agent's words were weakened, and efficiency analysis left an item unlabeled, so the report is `partial`. This describes incomplete evaluation, rather than a task being partly achieved. See the [scoring and evidence rules](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/).
+Also check whether the evaluation itself is complete. Two completion judgments relied only on the agent’s own statements, so the report reduced the credit given to them. Efficiency analysis also left work unclassified, and the report is `partial`. This describes an incomplete evaluation; keep these limits in mind when reading the scores. See the [scoring and evidence rules](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/).
 
-**Overall result** summarizes achieved, contradicted, and cancelled tasks in words, and distinguishes agent usage from judging usage. The original conversation used about 48.5 thousand tokens; the original evaluation used about 263.8 thousand. Regrouping is an additional evaluator call, recorded separately from the original run. Those two figures are not an all-inclusive total for later regrouping work.
+**Overall result** summarizes achieved, contradicted, and cancelled tasks in words, and distinguishes agent usage from judging usage. The original conversation used about 48.5 thousand tokens; the original evaluation used about 263.8 thousand. Regrouping is an additional evaluator call, recorded separately from the original run. The evaluation usage above excludes that additional regrouping call.
 
 ### Decide what to change
 
 The clearest improvement is to sequence dependent tools: **write configuration → validate → build → deploy → query and confirm**. Also require the final summary to distinguish completed, denied, and still-unconfirmed work.
 
 After making changes, run the same seven requests, pull a new snapshot, and judge again. Keep using the checklist from section 1: was verification completed, did rework decrease, and is the summary accurate?
+
+### Clean up the experiment
 
 When finished, preserve the snapshots and reports you need, then return to `examples/pull-judge/` to clean up:
 

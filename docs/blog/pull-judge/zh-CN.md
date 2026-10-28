@@ -1,6 +1,6 @@
 # 采集云端会话，本地评估：用 Apache SkyWalking AI Sessionizer 分析 Amazon Bedrock AgentCore 上的 AI Agent
 
-我们做一个发布助手：让它修改配置、部署应用、查询结果，再回答它到底完成了哪些工作。Agent 在 Amazon Bedrock AgentCore 上运行，Apache SkyWalking AI Sessionizer（`asz`）在云端记录执行过程。我们把记录拉到电脑上查看，再用本地 CLI 运行 judge，检查它是否完成了要求。
+本文用一个发布助手演示完整流程：让 Agent 修改配置、部署应用并查询结果，再检查这些工作是否达到要求。Agent 在 Amazon Bedrock AgentCore 上运行，Apache SkyWalking AI Sessionizer（`asz`）在云端记录执行过程。我们把记录拉到电脑上查看，再用本地 CLI 运行 judge，检查它是否完成了要求。
 
 本文沿着同一个例子走五步：**设计 Agent → 部署和采集 → 拉取并查看 → 运行 judge → 对照目标读结果。**
 
@@ -8,7 +8,7 @@
 
 这个 Agent 的工作是发布 `demo-v1`。我们给它文件读写、配置验证、构建、部署和状态查询工具，让模型自己决定如何调用。
 
-模型是真实的 Amazon Bedrock Nova Pro，Agent 使用 LangGraph，运行在 AgentCore Runtime 上。业务系统则是模拟的：配置、发布包、部署状态和验收申请都保存为文件，不会操作真实生产应用。
+Agent 使用 LangGraph，运行在 AgentCore Runtime 上，实际调用 Amazon Bedrock 的 Nova Pro 模型。业务系统则是模拟的：配置、发布包、部署状态和验收申请都保存为文件，不会操作真实生产应用。
 
 我们设计了七轮对话，让它既遇到正常任务，也遇到需求修改、权限拒绝和取消操作：
 
@@ -24,7 +24,7 @@
 
 这些要求写在 [`scenarios/release.json`](https://github.com/wu-sheng/aws-agentcore-asz-demo/blob/poc/pull-judge/examples/pull-judge/scenarios/release.json) 中，会作为真实用户消息发送给 Agent。右侧一列就是我们后面阅读 judge 结果时的检查清单。
 
-模拟器故意拒绝 production 部署，验收提交结果也不提供批准结论。因此，这个例子的正确行为包括：**遇到做不到的事情时，准确报告限制。** 部署目标没实现，与 Agent 是否如实报告，是需要分别检查的两件事。
+模拟器会拒绝 production 部署，提交验收后也不会返回明确的批准结论。我们既检查业务目标是否完成，也检查 Agent 是否准确报告失败和未知状态。例如，production 部署失败时，Agent 应明确说明被拒绝，不能宣称发布成功。
 
 ## 2. 怎么部署和采集
 
@@ -53,7 +53,7 @@ AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-pull-judge-agent:b3e872bfb9a26fbd
 
 这里使用本次实测的镜像。脚本检查模型访问，复制镜像到 ECR，并创建 AgentCore Runtime、Fargate 上的 asz、EFS 和网络资源。部署会产生 AWS 资源费用，运行 Agent 会产生模型调用费用。部署完成后，资源清单保存在 `.work/cloud/resources.txt`。
 
-### 采集是怎么接起来的
+### 配置执行记录和文件变化采集
 
 ```text
 AgentCore 中的 Agent
@@ -70,7 +70,7 @@ AgentCore 中的 Agent
 - **执行记录**：LangGraph 的追踪数据通过 `LANGSMITH_ENDPOINT` 发给 asz 的接收端，包含用户输入、模型回复和工具调用。
 - **文件变化**：asz 的记录组件跟踪 `write_file`、`build_release`、`deploy`、`submit_acceptance`，把变化写入共享 EFS，由 asz 读取。
 
-这让我们既能看到 Agent 说了什么，也能看到它改了什么。Agent 使用 Runtime IAM role 调用 Bedrock；云端 asz 负责采集，judge 稍后在本机运行。
+这两条采集路径把模型回复、工具结果和文件变化保存在同一条会话中。Agent 使用 Runtime IAM role 调用 Bedrock。云端只需要运行 Agent 和 asz 采集服务；评估所需的 Claude Code 或 Codex 在本机运行。
 
 现在发送第一节设计的七轮请求：
 
@@ -86,7 +86,7 @@ AgentCore 中的 Agent
 
 ## 3. 用 remote pull 获取数据，在本地查看
 
-remote pull 的作用很直接：**从云端 asz 复制一份会话到本机。** 云端继续采集，本机保留拉取时的版本，可以独立查看和评估。
+remote pull 将云端会话复制为本地快照。云端继续采集，本机保留拉取时的版本，后续查看和评估都使用这份固定的数据。
 
 ### 连接云端 asz
 
@@ -107,7 +107,7 @@ remotes:
     server_name: asz-pull-judge.internal
 ```
 
-`demo` 是这个远程服务的名字，`token_file` 用来认证。后两项用来校验本例的自签证书。云端的 HTTPS 服务和客户端 IP 限制也已由部署脚本配置。[remote pull 配置说明](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/)。
+`demo` 是这个远程服务的名字，`token_file` 指向认证 token 文件。`ca_file` 和 `server_name` 用来校验本例的自签证书。部署脚本已配置云端 HTTPS 服务，并限制为你的客户端 IP 可访问。详细配置见 [remote pull 配置说明](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/)。
 
 列出云端会话，再拉取其中一条：
 
@@ -116,7 +116,7 @@ asz pull -list -remote demo
 asz pull demo/CONVERSATION_ID
 ```
 
-将 `CONVERSATION_ID` 替换为列表中的 ID。pull 输出会给出快照标签 `SNAPSHOT_TAG`；也可以从 `checkpoints.json` 找到脚本已拉取的标签。后面用 `demo/CONVERSATION_ID:SNAPSHOT_TAG` 指定这份数据，避免把不同时间的会话混在一起。没有新记录时，再次拉取会显示 `unchanged`。
+将 `CONVERSATION_ID` 替换为列表中的 ID。pull 输出会给出快照标签 `SNAPSHOT_TAG`；脚本自动拉取的 A、B、C 标签则保存在上一级目录的 `checkpoints.json` 中。后面用 `demo/CONVERSATION_ID:SNAPSHOT_TAG` 指定这份数据，避免把不同时间的会话混在一起。没有新记录时，再次拉取会显示 `unchanged`。
 
 ### 在本地看 Agent 做了什么
 
@@ -136,7 +136,7 @@ asz view
 
 这次最终验证读到了 600，说明修改完成。但记录还显示，第一次验证与写入并行执行，读到了旧值，随后才重试成功。**最终结果正确，执行过程仍可能有不必要的返工。** judge 会帮助我们整理这类情况。
 
-查看已有快照不需要云端 asz 在线。需要更新数据时，再执行一次 pull。
+查看已有快照不需要云端 asz 在线。需要更新数据时，再执行一次 pull。查看完后，可按 Ctrl+C 停止 `asz view`，继续在当前目录运行下面的评估命令。
 
 ## 4. 按第一节的目标运行 judge，生成 HTML 报告
 
@@ -146,7 +146,7 @@ judge 从会话中的用户请求识别任务，检查工具结果、文件变�
 
 本机需要已安装并登录的 Claude Code，终端可以执行 `claude`。asz 会启动它进行评估；它读到的会话内容会发送给对应模型服务。使用 Codex 时，把后面命令的 `-evaluator claude` 换成 `-evaluator codex`。
 
-`bootstrap.sh` 已将本地 CLI 固定到合并 HTML 报告功能的 `07a2d95`（#95），可以直接使用以下命令。本次云端采集和记录组件使用 `341f8c0`；已有快照无需重新采集。
+第二节的 `bootstrap.sh` 已安装支持 HTML 报告的 asz CLI（提交 `07a2d95`），无需额外构建。本次云端采集和记录组件使用 `341f8c0`；已有快照无需重新采集。
 
 继续在 `.work/cloud-TIMESTAMP/client/` 中操作。示例的 `scenarios/judge-goals.yaml` 已把七轮请求整理成六个目标：配置、staging 发布验证、production 发布、验收、扩缩容与取消、最终总结。把它复制到当前目录：
 
@@ -161,7 +161,7 @@ goals:
   - Build and deploy staging, then query it to verify the release, replica count and timeout.
 ```
 
-实际使用完整的六条目标；上面只展示一条的写法。你可以用自己的语言写目标，关键是保留用户真正要求的结果，例如“部署后查询确认”，而不只是“尝试部署”。
+运行示例时使用复制得到的完整文件，其中包含六条目标。修改为自己的场景时，应写清预期结果，例如“部署后查询并确认版本、副本数和超时”。这份清单用于组织报告中的任务，方便与第一节的设计逐项对照。
 
 ### 运行评估
 
@@ -172,7 +172,7 @@ asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-替换为你的会话 ID 和 C 快照标签。命令先评估这份本地记录，再将识别出的任务归入我们的目标，保存为一次 run。它不会重新执行 Agent 的发布工具，也不要求云端 asz 在线。
+替换为你的会话 ID 和 C 快照标签。命令先评估这份本地记录，再将识别出的任务归入目标清单。每次评估保存为一条带编号的记录，称为 run。它不会重新执行 Agent 的发布工具，也不要求云端 asz 在线。
 
 如果已经评估过，只想让已有报告按这份目标清单组织，可以直接使用已有 run：
 
@@ -181,11 +181,11 @@ asz judge -regroup 1 -goals goals.yaml -evaluator claude \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-这一步会调用评估模型做目标归组，保留原来的评估。**`-goals` 调整的是结果如何对应我们的目标，不会把原有完成条件或分数自动改成预设答案。** 因此仍需阅读下一节中的条件和证据。本次文章就是对已有的 C 快照 run 1 归组，再用新版 CLI 导出报告。
+`-regroup` 会调用评估模型，将已有任务重新分组，保留原来的完成条件、证据和分数。**`-goals` 提供的是目标清单，不是评分规则。** 因此，读报告时还要检查 judge 识别出的完成条件是否符合原始要求。本文展示的报告来自 C 快照已有的 run 1：按六条目标重新分组后，用新版 CLI 导出。
 
-### 导出并打开 HTML
+### 导出 HTML 报告并在浏览器中打开
 
-先查看 run 编号，再导出指定的一份：
+先列出已有的评估记录，再导出要查看的 run。下面以 run 1 为例；若要查看其他记录，替换 `-run 1` 中的编号：
 
 ```sh
 asz judge -list \
@@ -201,9 +201,9 @@ asz judge -show -run 1 -format html \
 
 ## 5. 通过浏览器页面查看评估结果
 
-现在主要读 HTML 页面。它把结果组织为目标表格、可展开的任务详情、整体评估和整体结果。先看每项工作，再看总分。
+打开报告后，先在 Goals 表格中选择任务，展开查看完成条件和证据，最后阅读整体评分与总结。下面按这个顺序检查第一节的六个目标。
 
-下面使用同一次 AgentCore 实验的 C 快照。新版 CLI 重新呈现已有评估，并按我们的目标清单归组；原来的 Agent 执行记录和完成分没有改变。[本次 HTML 报告](assets/judge-C.html)保留在示例仓库中，可保存到本地打开。
+下面使用同一次 AgentCore 实验的 C 快照。报告按六条目标展示已有评估；Agent 执行记录和原评估分数保持不变。[本次 HTML 报告](assets/judge-C.html)保留在示例仓库中，可保存到本地打开。
 
 ### 第一步：在 Goals 表格里找到要检查的工作
 
@@ -211,7 +211,7 @@ asz judge -show -run 1 -format html \
 
 ![评估报告总览：六个目标的状态、分数和详情入口](assets/judge-overview.jpg)
 
-例如先找“staging 配置”这一项。它显示完成、100 分。再看“staging 部署并验证”，它显示结论被反驳、0 分。我们已经知道这两项需要分开检查，无需先理解一串内部编号。
+例如，“staging 配置”的状态是 `achieved`，分数为 100；“staging 部署并验证”的状态是 `contradicted`，分数为 0。前者表示 judge 判定任务完成，后者表示 Agent 的完成声明与记录中的证据冲突。接下来展开两项任务，查看具体原因。
 
 ### 第二步：展开详情，看 Criteria、Done 和 Missing
 
@@ -225,19 +225,19 @@ asz judge -show -run 1 -format html \
 
 ![staging 任务详情：Criteria、Done 和 Missing](assets/judge-staging.jpg)
 
-**配置目标：结果完成，但过程有返工。** 在 Criteria 中检查“两副本”“600 秒”和“更新后验证”。本次文件变化和最终验证结果支持这些条件。Done 展示已完成的配置工作；Missing 则列出并行写入和验证造成的两次返工，以及可避免工作消耗。因此，100 分代表最终达到要求，不代表过程没有错误。
+**配置目标：结果完成，但过程有返工。** 在 Criteria 中检查“两副本”“600 秒”和“更新后验证”。本次文件变化和最终验证结果支持这些条件。Done 展示已完成的配置工作；Missing 则列出并行写入和验证造成的两次返工，以及这些返工消耗的 tokens。因此，100 分代表最终达到要求，不代表过程没有错误。
 
 **staging 目标：部署返回成功，但查询验证没有完成。** 先看 Done：发布包已构建，部署工具返回成功并写入模拟状态。再看 Missing：查询与部署并行，返回 `not_deployed`，后面没有重查。对照第一节要求的“部署后查询确认”，缺口就很明确。
 
-这个任务的详情显示最终分 0，同时保留按完成记录得到的 40 分。它表达的是“做了一部分工作，但交付结论被反驳”，不能理解为“什么都没做”。
+这个任务的详情同时显示两个分数：按完成记录得到的 40 分，以及考虑完成声明与证据冲突后的最终分 0。阅读时需要同时看 Done 中已经完成的构建工作，以及 Missing 中缺少的部署后验证。
 
 本例是 remote pull 的快照。HTML 会显示评估保存的条件和证据摘录，但不会嵌入原始会话步骤；核对完整工具请求、返回和文件变化时，回到第三节的 `asz view`。
 
 ### 第三步：对照原始要求，核对完成条件和证据
 
-打开 production 任务的 Criteria，会看到本次 evaluator 将一个条件写成了“尝试部署”。于是虽然工具返回 `denied`、`deployed: false`，报告仍把任务标为完成。归组到我们的 production 目标下之后，这个条件也不会自动变成“部署成功”。
+production 任务展示了另一种需要检查的情况：judge 识别出的完成条件比用户要求更宽松。第一节要求“部署到 production”，本次评估却将一个条件写成了“尝试部署”。工具返回 `denied`、`deployed: false`，报告仍将任务标为 `achieved`，因为它按“已经尝试”判断完成。
 
-因此要同时保留两个判断：**production 部署目标没有实现；Agent 如实报告拒绝是正确行为。** HTML 把条件和证据放在一起，让这种口径差异更容易被发现。
+对照原始要求，应得出两个结论：**production 部署没有完成；Agent 如实报告拒绝的行为符合要求。** 将任务归入 production 目标不会修正这个过宽的完成条件。评估结果需要结合原始要求、Criteria 和工具证据一起阅读。
 
 其余目标可以按相同方式检查：
 
@@ -247,21 +247,32 @@ asz judge -show -run 1 -format html \
 | 检查配置后规划扩缩容，等待确认，随后取消 | 没有实施扩缩容，取消目标不计分；提出计划前没有重新检查配置，仍需改进 |
 | 总结完成、失败和未确认事项 | 总结漏掉了 staging 查询尚未确认的问题，应该补上 |
 
-### 第四步：读 Overall assessment 和 Overall result
+### 第四步：查看整体评分、评估完整性和总结
 
-**Overall assessment** 汇总分数、效率和评估自身的完整性。本次按完成记录（by the achievement record）计算为 83/100，考虑交付结论被反驳后为 75/100；效率为 79/100，表示按 tokens 计，已审查成本中约 21% 被判为可避免工作。66% 则表示目标成本中流向已完成目标的比例。这些值衡量不同的事情，不是模型的通用正确率。
+**Overall assessment** 汇总整体评分和评估完整性。本次报告中的几个数字可以这样读：
+
+| 数值 | 含义 |
+| --- | --- |
+| 83/100，by the achievement record | 根据已完成和未完成工作的记录计算的分数 |
+| 75/100，最终分 | 考虑完成声明与证据冲突后得到的分数 |
+| 79/100，效率分 | 以 tokens 衡量，已审查的消耗中约 21% 被判定为可避免的工作 |
+| 66%，delivered | 在归入目标的消耗中，被判定完成的目标所占的比例；不表示完成了 66% 的任务 |
+
+这些数字分别描述完成情况和执行效率，不能作为模型在其他任务上的准确率。
 
 本次还显示 `grouping: the judge agreed with 0 of your 6 goals; 6 merged`。原评估把六项工作合在一个发布目标下，我们则将它们分开检查。这是目标分组方式的差异，不是“六项目标全部失败”。
 
-这一部分也列出未完成的评估阶段。本次有两项仅依赖 Agent 自述的判定被减弱，效率分析还有未标注项，因此报告为 `partial`。它说明评估本身存在不完整之处，不等于某个任务只是部分完成。[评分与证据规则](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)。
+还要查看评估本身是否完整。本次有两项完成判定仅依赖 Agent 自述，报告降低了对它们的认可程度；效率分析也有尚未分类的工作项，报告状态为 `partial`。这里的 `partial` 指评估尚不完整，阅读分数时需要保留这些限制。详细规则见 [评分与证据规则](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)。
 
-**Overall result** 用文字总结完成、被反驳和取消的任务，并区分 Agent 执行与 judge 的消耗。本次原会话约 48.5 thousand tokens，原评估约 263.8 thousand tokens。目标归组是额外一次评估调用；它的记录与原 run 分开保存，不应把这两个数字当成包含后续归组的一切费用。
+**Overall result** 用文字总结完成情况、与证据冲突的完成声明和被取消的任务，同时列出 Agent 执行与 judge 的消耗。本次 Agent 会话约使用 4.85 万 tokens，原评估约使用 26.38 万 tokens。后续目标重新分组还会额外调用评估模型，其消耗单独记录，未包含在上述评估用量中。
 
-### 读完以后，具体改什么
+### 根据评估结果改进 Agent
 
 这次最直接的改进是让有先后依赖的工具按顺序执行：**写配置 → 验证 → 构建 → 部署 → 查询确认**。同时要求最终总结分别列出已完成、被拒绝和仍未确认的工作。
 
 修改后再跑同一组七轮请求，pull 新快照，重新 judge。评估时仍对照第一节的检查清单，确认查询验证是否补齐、返工是否减少、总结是否准确。
+
+### 清理实验资源
 
 完成实验后，先保留需要的快照和报告，再回到 `examples/pull-judge/` 清理资源：
 
