@@ -199,7 +199,7 @@ asz judge -show -run 1 -format html \
 
 新版 `-show` 默认选择最近一次已结束的 run；`-run 1` 明确选择 run 1。如果需要简短结论，把 `-format html` 换成 `-format markdown`；需要原始阶段数据则使用 `-show -run 1 -json`。[judge 命令说明](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)。
 
-## 5. 打开 HTML，按设计目标检查结果
+## 5. 通过浏览器页面查看评估结果
 
 现在主要读 HTML 页面。它把结果组织为目标表格、可展开的任务详情、整体评估和整体结果。先看每项工作，再看总分。
 
@@ -208,6 +208,8 @@ asz judge -show -run 1 -format html \
 ### 第一步：在 Goals 表格里找到要检查的工作
 
 表格列出 **Goal、Target、Status、Score**。Goal 是我们要达成的目标，Target 是评估识别出的具体任务，Status 说明结果，Score 给出分数。点击某行的 **Check details**，查看该任务的详情。
+
+![评估报告总览：六个目标的状态、分数和详情入口](assets/judge-overview.jpg)
 
 例如先找“staging 配置”这一项。它显示完成、100 分。再看“staging 部署并验证”，它显示结论被反驳、0 分。我们已经知道这两项需要分开检查，无需先理解一串内部编号。
 
@@ -218,6 +220,10 @@ asz judge -show -run 1 -format html \
 | **Criteria** | 什么条件才算完成？每条条件是否满足，证据是什么？ |
 | **Done** | Agent 实际完成了哪些工作？ |
 | **Missing** | 哪些要求没完成、没有证据，或者过程中出现了什么问题？ |
+
+下面是 staging 部署任务展开后的页面：完成条件、已做工作和缺口并排显示，可以直接对照阅读。
+
+![staging 任务详情：Criteria、Done 和 Missing](assets/judge-staging.jpg)
 
 **配置目标：结果完成，但过程有返工。** 在 Criteria 中检查“两副本”“600 秒”和“更新后验证”。本次文件变化和最终验证结果支持这些条件。Done 展示已完成的配置工作；Missing 则列出并行写入和验证造成的两次返工，以及可避免工作消耗。因此，100 分代表最终达到要求，不代表过程没有错误。
 

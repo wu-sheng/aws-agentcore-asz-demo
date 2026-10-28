@@ -129,3 +129,9 @@ record.” The original scores and six-goal grouping are unchanged. No new cloud
 conversation or full judge evaluation was run for this verification.
 
 HTML SHA-256: `e9f04ebd8db95612e51e3cc80a44766e2d2a4214666b66bfbcaf4e260f880af1`.
+
+The merged report was then inspected in the browser through an isolated loopback
+HTTP endpoint serving only the already-public HTML file. The overview table and
+expanded staging target were captured as `assets/judge-overview.jpg` and
+`assets/judge-staging.jpg`. Both screenshots show the actual merged report;
+they are not mockups or screenshots of the blog editor.

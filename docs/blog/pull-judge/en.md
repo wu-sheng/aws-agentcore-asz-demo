@@ -199,7 +199,7 @@ Open `judge-C.html` in your browser. It needs no web server and includes its own
 
 The new `-show` defaults to the latest closed run; `-run 1` selects run 1 explicitly. Use `-format markdown` instead of HTML for a concise summary, or `-show -run 1 -json` for the raw stage data. See the [judge command documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/).
 
-## 5. Open the HTML and check each design goal
+## 5. Review evaluation results in the browser
 
 The HTML page is now our main reading view. It presents a goal table, expandable task details, an overall assessment, and an overall result. Read individual tasks before the total score.
 
@@ -208,6 +208,8 @@ This example uses snapshot C from the same AgentCore experiment. The newer CLI p
 ### First: Find the work in the Goals table
 
 The table has **Goal, Target, Status, and Score** columns. A Goal is the result we wanted. A Target is a specific task identified by the evaluator. Status describes its outcome, and Score gives its score. Select **Check details** to inspect the task.
+
+![Report overview: status, score, and detail links for six goals](assets/judge-overview.jpg)
 
 Start with staging configuration: it is marked achieved with 100. Staging deployment and verification is marked contradicted with zero. We can see that these need separate inspection without first decoding internal identifiers.
 
@@ -218,6 +220,10 @@ Start with staging configuration: it is marked achieved with 100. Staging deploy
 | **Criteria** | What counts as completion? Was each condition met, and what evidence supports it? |
 | **Done** | What work did the agent actually complete? |
 | **Missing** | Which requirements are unmet, lack evidence, or involved problems along the way? |
+
+This is the expanded staging deployment task. Criteria, completed work, and missing work appear side by side for direct comparison.
+
+![Staging task details: Criteria, Done, and Missing](assets/judge-staging.jpg)
 
 **Configuration: completed, with rework.** Check the criteria for two replicas, 600 seconds, and validation after the update. File changes and the final validation support them. Done describes the configuration work. Missing lists two rounds of rework caused by parallel writes and validation, along with avoidable usage. A score of 100 means the result met the requirements, not that execution was error-free.
 
