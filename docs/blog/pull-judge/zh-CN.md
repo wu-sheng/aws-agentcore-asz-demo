@@ -1,7 +1,5 @@
 # 采集云端会话，本地评估：用 Apache SkyWalking AI Sessionizer 分析 Amazon Bedrock AgentCore 上的 AI Agent
 
-> 审阅稿，2026-10-28。本文使用同一次真实 AgentCore 实验；业务部署是明确披露的模拟环境。原始记录、判定争议与测量方法见 [实验记录](CLOUD-RESULTS.md)。尚未发布到 AWS Builder。
-
 Agent 回答“已经完成”之后，我们还需要回答几个问题：它完成的是用户原来的目标，还是一个缩小了范围的目标？重试是因为用户改变了要求，还是因为 Agent 把有先后依赖的工具并行调用了？申请提交成功，是否就等于批准结果已经得到确认？
 
 在[上一篇 AgentCore 实践](https://builder.aws.com/content/3KjX67DohBgEr8yPadw5MoDSV5C/agentcore-langgraph-agent)中，我们用 Apache SkyWalking AI Sessionizer（`asz`）保存执行过程和文件变更。这次继续往后走一步：**云端保留采集服务，开发者按需拉取会话，再使用本地 Agent CLI 进行评估。**
