@@ -165,14 +165,14 @@ Use the complete file copied above, which contains six goals. For your own scena
 
 ### Run the evaluation
 
-Choose **snapshot C**, taken after turn 7, to include revised requirements and cancellation. From `client/`, run:
+After all requests in section 1 have finished, including the final request to cancel scaling and summarize the results, evaluate the conversation snapshot pulled in section 3. This gives the judge the full history of requirement changes and cancellation. From `client/`, run:
 
 ```sh
 asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-Substitute your conversation ID and C snapshot tag. The command evaluates the local records and groups the identified tasks under our goals. Each evaluation is saved as a numbered record called a run. It does not execute the agent's release tools again or require cloud asz to be online.
+Replace `CONVERSATION_ID` and `SNAPSHOT_TAG` with the conversation ID and snapshot tag from the pull output in section 3. If you use the snapshots pulled automatically by the script, choose entry C in `checkpoints.json`; it contains the conversation after all requests have finished. The command evaluates the local records and groups the identified tasks under our goals. Each evaluation is saved as a numbered record called a run. It does not execute the agent's release tools again or require cloud asz to be online.
 
 If a judge run already exists and you only want to organize it by this goal list, use that saved run:
 
@@ -181,7 +181,7 @@ asz judge -regroup 1 -goals goals.yaml -evaluator claude \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-`-regroup` calls the evaluator to regroup existing tasks while preserving their criteria, evidence, and scores. **`-goals` provides a goal list, not scoring rules.** When reading the report, check whether the completion criteria identified by the judge match the original requests. The report shown here uses existing run 1 on snapshot C, regrouped under six goals and exported with the newer CLI.
+`-regroup` calls the evaluator to regroup existing tasks while preserving their criteria, evidence, and scores. **`-goals` provides a goal list, not scoring rules.** When reading the report, check whether the completion criteria identified by the judge match the original requests. The report shown here uses existing run 1 from the complete conversation snapshot, regrouped under six goals and exported.
 
 ### Export the HTML report and open it in a browser
 
@@ -203,7 +203,7 @@ The new `-show` defaults to the latest closed run; `-run 1` selects run 1 explic
 
 Start by selecting a task in the Goals table, expand its completion criteria and evidence, then read the overall scores and summary. We will use this order to check the six goals from section 1.
 
-This example uses snapshot C from the same AgentCore experiment. The newer CLI presents the saved evaluation and groups it by our goal list; the agent execution records and achievement scores have not changed. The [HTML report](assets/judge-C.html) is included in the repository and can be saved and opened locally.
+The report below evaluates all requests in this AgentCore conversation and organizes the results under the six goals from section 1. The [HTML report](assets/judge-C.html) is included in the repository and can be saved and opened locally.
 
 ### First: Find the work in the Goals table
 

@@ -165,14 +165,14 @@ goals:
 
 ### 运行评估
 
-选择第七轮后的 **C 快照**，让需求修改和取消操作都包含在评估中。在 `client/` 目录执行：
+等第一节的全部请求执行完毕，包括最后的“取消扩缩容并总结结果”，再使用第三节拉取的会话快照进行评估。这样，judge 才能看到完整的需求修改和取消过程。在 `client/` 目录执行：
 
 ```sh
 asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-替换为你的会话 ID 和 C 快照标签。命令先评估这份本地记录，再将识别出的任务归入目标清单。每次评估保存为一条带编号的记录，称为 run。它不会重新执行 Agent 的发布工具，也不要求云端 asz 在线。
+将 `CONVERSATION_ID` 和 `SNAPSHOT_TAG` 替换为第三节 pull 输出中的会话 ID 和快照标签。如果直接使用脚本自动拉取的记录，则选择 `checkpoints.json` 中的 C 项，它对应全部请求执行后的快照。命令先评估这份本地记录，再将识别出的任务归入目标清单。每次评估保存为一条带编号的记录，称为 run。它不会重新执行 Agent 的发布工具，也不要求云端 asz 在线。
 
 如果已经评估过，只想让已有报告按这份目标清单组织，可以直接使用已有 run：
 
@@ -181,7 +181,7 @@ asz judge -regroup 1 -goals goals.yaml -evaluator claude \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-`-regroup` 会调用评估模型，将已有任务重新分组，保留原来的完成条件、证据和分数。**`-goals` 提供的是目标清单，不是评分规则。** 因此，读报告时还要检查 judge 识别出的完成条件是否符合原始要求。本文展示的报告来自 C 快照已有的 run 1：按六条目标重新分组后，用新版 CLI 导出。
+`-regroup` 会调用评估模型，将已有任务重新分组，保留原来的完成条件、证据和分数。**`-goals` 提供的是目标清单，不是评分规则。** 因此，读报告时还要检查 judge 识别出的完成条件是否符合原始要求。本文展示的报告使用完整会话快照中已有的 run 1，按六条目标重新分组后导出。
 
 ### 导出 HTML 报告并在浏览器中打开
 
@@ -203,7 +203,7 @@ asz judge -show -run 1 -format html \
 
 打开报告后，先在 Goals 表格中选择任务，展开查看完成条件和证据，最后阅读整体评分与总结。下面按这个顺序检查第一节的六个目标。
 
-下面使用同一次 AgentCore 实验的 C 快照。报告按六条目标展示已有评估；Agent 执行记录和原评估分数保持不变。[本次 HTML 报告](assets/judge-C.html)保留在示例仓库中，可保存到本地打开。
+下面的报告评估了这次 AgentCore 会话的全部请求，并按第一节的六个目标组织结果。[本次 HTML 报告](assets/judge-C.html)保留在示例仓库中，可保存到本地打开。
 
 ### 第一步：在 Goals 表格里找到要检查的工作
 
