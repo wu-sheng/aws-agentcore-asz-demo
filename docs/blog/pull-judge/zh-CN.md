@@ -138,122 +138,124 @@ asz view
 
 查看已有快照不需要云端 asz 在线。需要更新数据时，再执行一次 pull。
 
-## 4. 按第一节的目标运行 judge
+## 4. 按第一节的目标运行 judge，生成 HTML 报告
 
-judge 需要知道“用户要求完成什么”。在这个例子里，第一节的目标已经写进七轮用户消息，并随会话一起采集。**judge 从这些消息中识别目标，再检查工具结果、文件变化和回复是否支持完成结论。** 不需要另写一份评分文件；它也不会自动读取本文的检查清单。
+judge 从会话中的用户请求识别任务，检查工具结果、文件变化和回复是否支持完成结论。我们还可以把第一节的设计目标交给它，让报告按自己的检查清单组织，方便逐项阅读。
 
-例如第三轮明确要求“部署后查询并核对”，评估就应检查查询是否确认了版本、副本数和超时。只有一句“已部署”，不足以证明整项要求完成。
+### 准备本地 CLI 和目标清单
 
-### 选择本地评估 CLI
+本机需要已安装并登录的 Claude Code，终端可以执行 `claude`。asz 会启动它进行评估；它读到的会话内容会发送给对应模型服务。使用 Codex 时，把后面命令的 `-evaluator claude` 换成 `-evaluator codex`。
 
-本例先用 Claude Code。请确认本机已安装并登录，且终端可以执行 `claude`。脚本生成的配置已经设置了本次使用的超时和读取预算，asz 也内置了 `claude` evaluator，可以直接运行。
-
-如果需要显式配置 CLI，在现有 `asz.yaml` 的 `judge` 下合并以下内容，保留已有字段即可：
-
-```yaml
-judge:
-  evaluators:
-    claude:
-      kind: cli
-      program: claude
-      args: []
-```
-
-本例使用 CLI 默认模型。需要指定模型时，在 `claude` 下增加 `model`，使用该 CLI 支持的模型标识。详细配置见 [judge 文档](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)。本地 CLI 会把读到的会话内容发送给它使用的模型服务。
-
-### 评估完整会话
-
-选择第七轮后的 **C 快照**，这样需求修改和取消操作都包含在评估范围内。在 `client/` 目录中运行：
+**以下命令使用支持 HTML 报告的新版本地 asz。** 示例的云端采集版本可以继续使用。若 `bootstrap.sh` 安装的 CLI 尚不支持 `-format html`，在 `examples/pull-judge/` 目录中，从包含该功能的 asz 源码构建本地 CLI：
 
 ```sh
-asz judge -evaluator claude \
+ASZ_REPORT_SOURCE=/path/to/skywalking-ai-sessionizer
+ASZ_LOCAL_CLI="$PWD/.work/bin/asz"
+(cd "$ASZ_REPORT_SOURCE" && go build -o "$ASZ_LOCAL_CLI" ./cmd/asz)
+```
+
+将源码路径替换为实际位置，然后回到 `.work/cloud-TIMESTAMP/client/`。示例的 `scenarios/judge-goals.yaml` 已把七轮请求整理成六个目标：配置、staging 发布验证、production 发布、验收、扩缩容与取消、最终总结。把它复制到当前目录：
+
+```sh
+cp ../../../scenarios/judge-goals.yaml goals.yaml
+```
+
+文件使用简单的目标列表，例如其中一条是：
+
+```yaml
+goals:
+  - Build and deploy staging, then query it to verify the release, replica count and timeout.
+```
+
+实际使用完整的六条目标；上面只展示一条的写法。你可以用自己的语言写目标，关键是保留用户真正要求的结果，例如“部署后查询确认”，而不只是“尝试部署”。
+
+### 运行评估
+
+选择第七轮后的 **C 快照**，让需求修改和取消操作都包含在评估中。在 `client/` 目录执行：
+
+```sh
+asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-替换为你的会话 ID 和 C 快照标签。这个命令读取本地数据，创建一次评估运行（run），结束后打印报告。它不会重新执行发布工具。
+替换为你的会话 ID 和 C 快照标签。命令先评估这份本地记录，再将识别出的任务归入我们的目标，保存为一次 run。它不会重新执行 Agent 的发布工具，也不要求云端 asz 在线。
 
-列出并查看保存的报告：
+如果已经评估过，只想让已有报告按这份目标清单组织，可以直接使用已有 run：
+
+```sh
+asz judge -regroup 1 -goals goals.yaml -evaluator claude \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+```
+
+这一步会调用评估模型做目标归组，保留原来的评估。**`-goals` 调整的是结果如何对应我们的目标，不会把原有完成条件或分数自动改成预设答案。** 因此仍需阅读下一节中的条件和证据。本次文章就是对已有的 C 快照 run 1 归组，再用新版 CLI 导出报告。
+
+### 导出并打开 HTML
+
+先查看 run 编号，再导出指定的一份：
 
 ```sh
 asz judge -list \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 
-asz judge -show 1 \
-  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+asz judge -show -run 1 -format html \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG > judge-C.html
 ```
 
-`1` 是运行编号，有多份报告时按列表选择。需要 JSON 时，在 `-show 1` 后加 `-json`。这些查看命令不会再次调用模型。
+用浏览器打开本机的 `judge-C.html` 即可，不需要启动 Web 服务。文件内包含页面样式，便于保留或分享完整报告。导出只读取已保存的结果，不会再次调用模型。
 
-如果本机使用 Codex，把运行命令中的 `-evaluator claude` 换成 `-evaluator codex`。对同一快照再次评估会保存为新 run，便于保留不同评估结果。
+新版 `-show` 默认选择最近一次已结束的 run；`-run 1` 明确选择 run 1。如果需要简短结论，把 `-format html` 换成 `-format markdown`；需要原始阶段数据则使用 `-show -run 1 -json`。[judge 命令说明](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)。
 
-## 5. 怎么读结果，判断 Agent 是否达标
+## 5. 打开 HTML，按设计目标检查结果
 
-先把报告里的目标与第一节的要求对上，再看证据，最后看总分。下面使用本次 C 快照的 Claude run 1。重新运行模型时，行为和分数可能变化。
+现在主要读 HTML 页面。它把结果组织为目标表格、可展开的任务详情、整体评估和整体结果。先看每项工作，再看总分。
 
-### 例子一：改配置完成了，但有返工
+下面使用同一次 AgentCore 实验的 C 快照。新版 CLI 重新呈现已有评估，并按我们的目标清单归组；原来的 Agent 执行记录和完成分没有改变。[本次 HTML 报告](assets/judge-C.html)保留在示例仓库中，可保存到本地打开。
 
-报告片段如下，省略了较长的目标标题：
+### 第一步：在 Goals 表格里找到要检查的工作
 
-```text
-t1  A validated staging configuration ... 100/100
-    outcome   achieved; standing t1.e3, t1.e4; 2 rounds of rework
-    record    achieved: 5 of 5 criteria met, on observed result; closed
-```
+表格列出 **Goal、Target、Status、Score**。Goal 是我们要达成的目标，Target 是评估识别出的具体任务，Status 说明结果，Score 给出分数。点击某行的 **Check details**，查看该任务的详情。
 
-读这几行就能回答两个问题：
+例如先找“staging 配置”这一项。它显示完成、100 分。再看“staging 部署并验证”，它显示结论被反驳、0 分。我们已经知道这两项需要分开检查，无需先理解一串内部编号。
 
-- **最终做成了吗？** `achieved`，五项条件都满足；结合文件变化和验证结果，能确认最终是两个副本、600 秒。
-- **过程顺利吗？** `2 rounds of rework`，有两次返工。100 分表示完成了目标，不表示没有错误或浪费。
+### 第二步：展开详情，看 Criteria、Done 和 Missing
 
-需要核查时，继续读 `why` 中的理由与工具引用，并在 `asz view` 中打开对应记录。`history` 记录交付变化，`standing` 标出仍有效的交付；这里应以更新后的 600 秒版本为准。
+| 页面区域 | 要回答的问题 |
+| --- | --- |
+| **Criteria** | 什么条件才算完成？每条条件是否满足，证据是什么？ |
+| **Done** | Agent 实际完成了哪些工作？ |
+| **Missing** | 哪些要求没完成、没有证据，或者过程中出现了什么问题？ |
 
-### 例子二：部署返回成功，不等于完成了验证
+**配置目标：结果完成，但过程有返工。** 在 Criteria 中检查“两副本”“600 秒”和“更新后验证”。本次文件变化和最终验证结果支持这些条件。Done 展示已完成的配置工作；Missing 则列出并行写入和验证造成的两次返工，以及可避免工作消耗。因此，100 分代表最终达到要求，不代表过程没有错误。
 
-staging 目标的报告片段是：
+**staging 目标：部署返回成功，但查询验证没有完成。** 先看 Done：发布包已构建，部署工具返回成功并写入模拟状态。再看 Missing：查询与部署并行，返回 `not_deployed`，后面没有重查。对照第一节要求的“部署后查询确认”，缺口就很明确。
 
-```text
-t2  The release bundle is built ... 0/100 (40 by the record)
-    outcome   contradicted; standing t2.e1, t2.e2, t2.e3
-    record    partly: 2 of 4 criteria met, on observed result; closed
-```
+这个任务的详情显示最终分 0，同时保留仅按完成条件得到的 40 分。它表达的是“做了一部分工作，但交付结论被反驳”，不能理解为“什么都没做”。
 
-`partly` 表示只完成了一部分，`contradicted` 表示交付结论被记录中的证据反驳。回到第三轮要求，我们希望的是“部署之后查询验证”。实际记录却是：
+本例是 remote pull 的快照。HTML 会显示评估保存的条件和证据摘录，但不会嵌入原始会话步骤；核对完整工具请求、返回和文件变化时，回到第三节的 `asz view`。
 
-1. `deploy` 返回成功，写入模拟部署状态。
-2. `get_deployment` 与部署并行，读到 `not_deployed`。
-3. Agent 没有再次查询确认。
+### 第三步：不要只接受绿色的完成标签
 
-所以我们能确认部署工具执行了，但不能确认它完成了要求中的查询验证。报告保留了部分工作的记录分 40，最终因交付结论被反驳给了 0。这个分数不能解释成“什么都没做”。
+打开 production 任务的 Criteria，会看到本次 evaluator 将一个条件写成了“尝试部署”。于是虽然工具返回 `denied`、`deployed: false`，报告仍把任务标为完成。归组到我们的 production 目标下之后，这个条件也不会自动变成“部署成功”。
 
-具体做过什么看 `did`，缺了什么看 `gap`，Agent 的说法是否有证据看 `claims`。这些部分比单独一个 0 分更能帮助我们修改 Agent。
+因此要同时保留两个判断：**production 部署目标没有实现；Agent 如实报告拒绝是正确行为。** HTML 把条件和证据放在一起，让这种口径差异更容易被发现。
 
-### 对照最初设计，检查其余结果
+其余目标可以按相同方式检查：
 
-| 第一节的要求 | 本次记录和 judge 结果 | 我们的评估 |
-| --- | --- | --- |
-| production 构建并部署，说明失败部分 | 构建成功，部署被拒绝；judge 却给出 `achieved`，因为它把条件写成了“尝试部署” | 部署目标未实现。报告失败是正确行为，但不能把“尝试过”当成“部署完成” |
-| 提交验收并确认批准状态 | 保存了申请 ID，`approved: null`；judge 按“报告状态”给出 `achieved` | 提交完成，批准仍未知，不能写成“验收通过” |
-| 检查配置、提出方案，确认前不修改；随后取消 | 未实施扩缩容，目标为 `cancelled`，不计分；提出方案前没有重新检查配置 | 取消后没有误操作，但“先检查再规划”仍有改进空间 |
-| 准确总结完成、失败和未确认事项 | 总结目标为部分完成；没有把 staging 查询未确认的问题列出来 | 总结需要补上这个未知状态 |
+| 原始要求 | 本次应如何评估 |
+| --- | --- |
+| 提交验收并确认批准状态 | 申请 ID 已保存，但 `approved: null`。提交完成，批准仍未知；不能把完成标签读成“验收通过” |
+| 检查配置后规划扩缩容，等待确认，随后取消 | 没有实施扩缩容，取消目标不计分；提出计划前没有重新检查配置，仍需改进 |
+| 总结完成、失败和未确认事项 | 总结漏掉了 staging 查询尚未确认的问题，应该补上 |
 
-这也说明为什么要先列出设计目标：judge 会解释用户要求，这个解释需要检查。看到 `achieved` 时，应继续问“它认为什么条件满足了？”若条件被放宽，就回到用户消息和工具结果复核。
+### 第四步：读 Overall assessment 和 Overall result
 
-### 总分和报告状态各代表什么
+**Overall assessment** 汇总分数、效率和评估自身的完整性。本次按条件计算为 83/100，考虑交付结论被反驳后为 75/100；效率为 79/100，表示按 tokens 计，已审查成本中约 21% 被判为可避免工作。66% 则表示目标成本中流向已完成目标的比例。这些值衡量不同的事情，不是模型的通用正确率。
 
-本次报告的四个指标是：
+本次还显示 `grouping: the judge agreed with 0 of your 6 goals; 6 merged`。原评估把六项工作合在一个发布目标下，我们则将它们分开检查。这是目标分组方式的差异，不是“六项目标全部失败”。
 
-| 指标 | 本次值 | 直接怎么理解 |
-| --- | ---: | --- |
-| `achievement` | 83/100 | 按记录评估的目标完成程度；取消目标不参与评分 |
-| `final` | 75/100 | 进一步考虑交付结论被反驳等情况后的完成分 |
-| `efficiency` | 79/100 | 本次按 tokens 计，已审查成本中约 21% 被归为可避免工作 |
-| `delivered` | 66% | 目标成本中约 66% 花在被判定完成的目标上 |
+这一部分也列出未完成的评估阶段。本次有两项仅依赖 Agent 自述的判定被减弱，效率分析还有未标注项，因此报告为 `partial`。它说明评估本身存在不完整之处，不等于某个任务只是部分完成。[评分与证据规则](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)。
 
-先解释目标，再解释分数。例如本次 `final` 低于 `achievement`，主要来自 staging 交付结论被反驳；`efficiency` 则帮助我们看返工成本。它们不是同一种百分比，也不表示模型的通用正确率。[评分规则](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)。
-
-还要看报告开头的阶段状态。本次报告为 `partial`：两项仅依赖 Agent 自述的判定被减弱，效率分析也有未标注项。它表示**评估本身有不完整之处**，与目标的 `partly`（任务部分完成）不同。保留这些说明，不应把报告当成没有争议的最终判决。
-
-成本部分也分两笔：`conversation` 是原 Agent 的模型用量，`judging` 是评估消耗。本次分别约为 48.5k 和 263.8k tokens。`unpriced` 表示没有完整价格信息，不表示费用为零。
+**Overall result** 用文字总结完成、被反驳和取消的任务，并区分 Agent 执行与 judge 的消耗。本次原会话约 48.5 thousand tokens，原评估约 263.8 thousand tokens。目标归组是额外一次评估调用；它的记录与原 run 分开保存，不应把这两个数字当成包含后续归组的一切费用。
 
 ### 读完以后，具体改什么
 

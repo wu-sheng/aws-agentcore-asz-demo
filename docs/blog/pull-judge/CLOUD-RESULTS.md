@@ -83,3 +83,32 @@ Agent 用量 46,694 input + 1,840 output tokens，17 次调用未定价，不能
 完整证据归档：`examples/pull-judge/.work/cloud-evidence-20261028.tar.gz`，包括三个快照、四次 judge、响应、截图和指标；不包含 client 配置、token 或 TLS 私钥。GitHub 镜像的匿名读取已通过验证。相对旧基线 `2ad7220`，所有跟踪变更均为新增文件；旧文章和 demo 文件无修改。
 
 参考：[ECS 服务指标](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html)、[Container Insights 指标](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-metrics-ECS.html)。
+
+## HTML report and design-goal grouping
+
+On October 28, the local asz worktree based on `341f8c0` added goal-oriented text,
+Markdown and standalone HTML reports. The report change was not merged at the time
+of this check; the cloud image, recorder and bootstrap pin were not changed.
+A separate local binary rendered the existing C snapshot's Claude run 1 successfully
+in all three formats. No AgentCore requests or original judge stages were rerun.
+
+The six design goals in `examples/pull-judge/scenarios/judge-goals.yaml` were passed
+to `judge -regroup 1 -evaluator claude`. The saved regroup is
+`g1-regroup-4167c4949171.sj`; the command exited successfully. All six tasks were
+mapped to our six goals. The grouping comparison reports zero agreed and six merged:
+the original run grouped these tasks under one release goal. This is a grouping
+difference, not six failed task outcomes. Regrouping does not revise the existing
+criteria or achievement scores and makes an additional evaluator call.
+
+The exported [HTML report](assets/judge-C.html) has six goal cards and six task
+details, followed by Overall assessment and Overall result. It retains scores
+83 by criteria, 75 final, 79 efficiency and 66% delivered, along with the partial
+stage notes. The report's original conversation and judging totals do not include
+the later regroup call. Its styles and script are inline with no external resource
+URLs. As documented for pulled snapshots, original conversation steps are not
+embedded; the page retains evaluation evidence excerpts and says why the steps are
+not shown. Use `asz view` to inspect the underlying conversation.
+
+Validation covered rendering commands and parsed HTML content/structure. Visual
+browser inspection of the local HTML was not completed because the browser tool
+blocks file URLs. No claim is made here about screenshot verification of this report.

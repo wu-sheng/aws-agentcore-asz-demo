@@ -138,122 +138,124 @@ The final validation read 600, confirming the update. However, the record also s
 
 Viewing an existing snapshot does not require cloud asz to be online. Pull again when you need newer data.
 
-## 4. Judge the goals from section 1
+## 4. Judge the design goals and generate an HTML report
 
-The judge needs to know what the user asked the agent to achieve. Here, the goals from section 1 are already written into the seven user messages and collected with the conversation. **The judge identifies targets from those messages, then checks whether tool results, file changes, and replies support completion.** We do not need a separate scoring file, and the judge does not automatically read this article's checklist.
+The judge identifies tasks from the user's requests, then checks whether tool results, file changes, and replies support completion. We can also provide the design goals from section 1, so the report follows our own checklist.
 
-For example, turn 3 explicitly asks for verification after deployment. Evaluation should therefore check whether a query confirmed the release, replica count, and timeout. A reply saying “deployed” alone does not establish that the whole request was fulfilled.
+### Prepare the local CLI and goal list
 
-### Choose a local evaluation CLI
+Install and sign in to Claude Code, and make sure your terminal can run `claude`. asz starts it for evaluation; conversation content it reads goes to its model service. For Codex, replace `-evaluator claude` with `-evaluator codex` in the commands below.
 
-This example starts with Claude Code. Install it, sign in, and make sure your terminal can run `claude`. The generated configuration already includes the time and reading budgets used in this run. asz has a built-in `claude` evaluator, so you can run it directly.
-
-To configure the CLI explicitly, merge this into the existing `judge` section of `asz.yaml`, retaining its other fields:
-
-```yaml
-judge:
-  evaluators:
-    claude:
-      kind: cli
-      program: claude
-      args: []
-```
-
-This uses the CLI's default model. To select one, add `model` under `claude` with an identifier supported by that CLI. See the [judge documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/) for configuration details. The local CLI sends the conversation content it reads to its model service.
-
-### Evaluate the complete conversation
-
-Choose **snapshot C**, taken after turn 7, so the evaluation includes revised requirements and cancellation. From `client/`, run:
+**These commands use the newer local asz CLI with HTML reporting.** The example's cloud collector can remain on its pinned version. If the CLI installed by `bootstrap.sh` does not support `-format html`, build the local CLI from source containing that feature. Run this from `examples/pull-judge/`:
 
 ```sh
-asz judge -evaluator claude \
+ASZ_REPORT_SOURCE=/path/to/skywalking-ai-sessionizer
+ASZ_LOCAL_CLI="$PWD/.work/bin/asz"
+(cd "$ASZ_REPORT_SOURCE" && go build -o "$ASZ_LOCAL_CLI" ./cmd/asz)
+```
+
+Replace the source path, then return to `.work/cloud-TIMESTAMP/client/`. The example's `scenarios/judge-goals.yaml` organizes the seven requests into six goals: configuration, staging deployment and verification, production deployment, acceptance, autoscaling and cancellation, and the final summary. Copy it into the current directory:
+
+```sh
+cp ../../../scenarios/judge-goals.yaml goals.yaml
+```
+
+The file is a simple list. For example, one entry reads:
+
+```yaml
+goals:
+  - Build and deploy staging, then query it to verify the release, replica count and timeout.
+```
+
+Use the complete six-goal file; this snippet only illustrates one entry. Write goals in your own words, preserving the requested result, such as verification after deployment rather than just attempting deployment.
+
+### Run the evaluation
+
+Choose **snapshot C**, taken after turn 7, to include revised requirements and cancellation. From `client/`, run:
+
+```sh
+asz judge -evaluator claude -goals goals.yaml \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-Substitute your conversation ID and C snapshot tag. This reads local data, creates a judge run, and prints a report when finished. It does not execute the release tools again.
+Substitute your conversation ID and C snapshot tag. The command evaluates the local records, groups the identified tasks under our goals, and saves a run. It does not execute the agent's release tools again or require cloud asz to be online.
 
-List and read saved reports:
+If a judge run already exists and you only want to organize it by this goal list, use that saved run:
+
+```sh
+asz judge -regroup 1 -goals goals.yaml -evaluator claude \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+```
+
+Regrouping calls the evaluator and preserves the original evaluation. **`-goals` changes how results map to our goals; it does not rewrite existing criteria or scores to match an expected answer.** We still need to inspect those criteria and evidence. For this article, we regrouped existing run 1 on snapshot C and exported it with the new CLI.
+
+### Export and open the HTML
+
+List the run numbers, then export the intended run:
 
 ```sh
 asz judge -list \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 
-asz judge -show 1 \
-  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+asz judge -show -run 1 -format html \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG > judge-C.html
 ```
 
-`1` is the run number; choose from the list if multiple reports exist. Add `-json` after `-show 1` for JSON output. Viewing a report does not call the model again.
+Open `judge-C.html` in your browser. It needs no web server and includes its own styles, making it convenient to retain or share the detailed report. Export reads saved results without calling the model again.
 
-If you use Codex locally, replace `-evaluator claude` with `-evaluator codex`. Judging the same snapshot again creates another run, preserving earlier results.
+The new `-show` defaults to the latest closed run; `-run 1` selects run 1 explicitly. Use `-format markdown` instead of HTML for a concise summary, or `-show -run 1 -json` for the raw stage data. See the [judge command documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/).
 
-## 5. Read the results and assess the agent
+## 5. Open the HTML and check each design goal
 
-Match reported targets to the requirements in section 1, inspect the evidence, and then read the overall scores. The following examples use Claude run 1 on our C snapshot. Another model run may produce different behavior and scores.
+The HTML page is now our main reading view. It presents a goal table, expandable task details, an overall assessment, and an overall result. Read individual tasks before the total score.
 
-### Example 1: Configuration completed, with rework
+This example uses snapshot C from the same AgentCore experiment. The newer CLI presents the saved evaluation and groups it by our goal list; the agent execution records and achievement scores have not changed. The [HTML report](assets/judge-C.html) is included in the repository and can be saved and opened locally.
 
-This report excerpt shortens the target title:
+### First: Find the work in the Goals table
 
-```text
-t1  A validated staging configuration ... 100/100
-    outcome   achieved; standing t1.e3, t1.e4; 2 rounds of rework
-    record    achieved: 5 of 5 criteria met, on observed result; closed
-```
+The table has **Goal, Target, Status, and Score** columns. A Goal is the result we wanted. A Target is a specific task identified by the evaluator. Status describes its outcome, and Score gives its score. Select **Check details** to inspect the task.
 
-It answers two questions:
+Start with staging configuration: it is marked achieved with 100. Staging deployment and verification is marked contradicted with zero. We can see that these need separate inspection without first decoding internal identifiers.
 
-- **Did the agent finish?** `achieved`, with all five criteria met. The file change and validation confirm two replicas and a 600-second timeout.
-- **Did execution go smoothly?** `2 rounds of rework`. A score of 100 means the target was achieved, not that the process was error-free or efficient.
+### Second: Expand Criteria, Done, and Missing
 
-For verification, follow the reasons and tool references under `why`, then inspect the corresponding records in `asz view`. `history` records changes in delivery; `standing` identifies deliveries still in effect. Here, the updated 600-second version is the relevant one.
+| Page section | Question to answer |
+| --- | --- |
+| **Criteria** | What counts as completion? Was each condition met, and what evidence supports it? |
+| **Done** | What work did the agent actually complete? |
+| **Missing** | Which requirements are unmet, lack evidence, or involved problems along the way? |
 
-### Example 2: Deployment success does not complete verification
+**Configuration: completed, with rework.** Check the criteria for two replicas, 600 seconds, and validation after the update. File changes and the final validation support them. Done describes the configuration work. Missing lists two rounds of rework caused by parallel writes and validation, along with avoidable usage. A score of 100 means the result met the requirements, not that execution was error-free.
 
-The staging target includes:
+**Staging: deployment returned success, but verification was incomplete.** Done shows the built bundle and a successful deployment tool result with saved simulated state. Missing shows that the query ran alongside deployment, returned `not_deployed`, and was never repeated. Compare that with section 1's requirement to verify after deployment: the gap is clear.
 
-```text
-t2  The release bundle is built ... 0/100 (40 by the record)
-    outcome   contradicted; standing t2.e1, t2.e2, t2.e3
-    record    partly: 2 of 4 criteria met, on observed result; closed
-```
+This task shows a final score of zero while retaining 40 by its criteria alone. That describes partial work followed by a contradicted delivery conclusion. It does not mean nothing happened.
 
-`partly` means partial achievement. `contradicted` means recorded evidence contradicts the delivered conclusion. Turn 3 asked for verification after deployment, but the record shows:
+This is a remote pull snapshot. The HTML includes saved criteria and evidence excerpts but does not embed the original conversation steps. Use `asz view` from section 3 to inspect full tool requests, responses, and file changes.
 
-1. `deploy` returned success and wrote simulated deployment state.
-2. `get_deployment` ran alongside deployment and read `not_deployed`.
-3. The agent never queried again to confirm the result.
+### Third: Check more than the achieved label
 
-We can establish that the deployment tool executed, but not that the requested verification was completed. The report retains a record score of 40 for partial work and gives a final score of zero because the delivered conclusion was contradicted. This does not mean nothing happened.
+Open the production task's Criteria. In this run, the evaluator defined one condition as attempting deployment. It therefore marked the task achieved even though the tool returned `denied` and `deployed: false`. Grouping it under our production goal does not automatically change that criterion to successful deployment.
 
-Read `did` for work performed, `gap` for missing conditions, and `claims` for whether the agent's statements have supporting evidence. These sections tell us more about what to fix than a zero alone.
+Keep two conclusions separate: **production deployment was not achieved; accurately reporting the denial was correct behavior.** Having criteria and evidence together makes this difference easier to see.
 
-### Check the remaining results against the original design
+Use the same approach for the remaining goals:
 
-| Requirement from section 1 | Recorded behavior and judge result | Our assessment |
-| --- | --- | --- |
-| Build and deploy production, explaining failures | Build succeeded, deployment was denied; judge labeled the target `achieved` after defining its criterion as attempting deployment | Deployment was not achieved. Reporting failure is correct behavior, but an attempt is not deployment success |
-| Submit acceptance and confirm approval status | Request ID saved, `approved: null`; judge labeled reporting the status as `achieved` | Submission completed; approval remains unknown |
-| Inspect, plan, wait for confirmation, then cancel | No autoscaling implementation; target `cancelled` and unscored; no fresh inspection before proposing the plan | Cancellation caused no unintended change, but inspection before planning needs improvement |
-| Accurately summarize completed, failed, and unconfirmed work | Summary partly achieved; it omitted the unresolved staging query | The summary should include that unconfirmed state |
+| Original requirement | Assessment of this run |
+| --- | --- |
+| Submit acceptance and confirm approval | Request ID retained, but `approved: null`. Submission completed; approval remains unknown. An achieved label does not establish approval |
+| Inspect before planning autoscaling, wait, then cancel | No autoscaling implementation, and the cancelled target is unscored. Fresh inspection before proposing the plan was still missing |
+| Summarize completed, failed, and unconfirmed work | The summary should include the unresolved staging verification |
 
-This is why we start with design goals. The judge interprets the user's requirements, and that interpretation needs review. When you see `achieved`, ask which conditions it considers met. If those conditions were weakened, return to the user messages and tool results.
+### Fourth: Read Overall assessment and Overall result
 
-### Understand scores and report status
+**Overall assessment** brings together scores, efficiency, and evaluation completeness. This run scored 83/100 by criteria alone and 75/100 after accounting for contradicted delivery conclusions. Efficiency was 79/100: with tokens as the unit, about 21% of reviewed cost was classified as avoidable. The 66% delivered measure describes target cost allocated to achieved targets. These measures differ; none is general model accuracy.
 
-This report contains four measures:
+This run also reports `grouping: the judge agreed with 0 of your 6 goals; 6 merged`. The original evaluation grouped all six tasks under one release goal, while our checklist separates them. This is a grouping difference, not six failed goals.
 
-| Measure | This run | Plain-language meaning |
-| --- | ---: | --- |
-| `achievement` | 83/100 | Target completion by the record; cancelled targets are excluded |
-| `final` | 75/100 | Completion after accounting for issues such as contradicted delivery conclusions |
-| `efficiency` | 79/100 | With tokens as the unit, about 21% of reviewed cost was classified as avoidable |
-| `delivered` | 66% | About 66% of target cost went to targets judged achieved |
+This section also lists incomplete evaluation stages. Two judgments relying only on the agent's words were weakened, and efficiency analysis left an item unlabeled, so the report is `partial`. This describes incomplete evaluation, rather than a task being partly achieved. See the [scoring and evidence rules](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/).
 
-Explain targets before scores. Here, `final` is lower than `achievement` mainly because staging's delivered conclusion was contradicted. `efficiency` helps examine rework cost. These percentages measure different things; none is a general model accuracy score. See the [scoring rules](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/).
-
-Also read the stage status at the top. This report was `partial`: two judgments relying only on the agent's words were weakened, and efficiency analysis left an item unlabeled. This means **the evaluation itself has incomplete parts**. It differs from a target being `partly` achieved. Retain these qualifications instead of treating the report as an undisputed verdict.
-
-Cost has two parts too: `conversation` is the original agent's model usage, while `judging` is evaluation usage. This run recorded approximately 48.5k and 263.8k tokens respectively. `unpriced` means pricing information is incomplete, not that cost is zero.
+**Overall result** summarizes achieved, contradicted, and cancelled tasks in words, and distinguishes agent usage from judging usage. The original conversation used about 48.5 thousand tokens; the original evaluation used about 263.8 thousand. Regrouping is an additional evaluator call, recorded separately from the original run. Those two figures are not an all-inclusive total for later regrouping work.
 
 ### Decide what to change
 

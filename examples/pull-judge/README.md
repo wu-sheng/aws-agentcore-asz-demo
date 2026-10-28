@@ -123,3 +123,24 @@ After copying evidence outside the cloud service, run `bash scripts/down.sh --ye
 `bash scripts/down.sh check`. AWS-managed AgentCore network interfaces may delay final
 network cleanup. Also remove the experiment's Container Insights performance log group
 (`/aws/ecs/containerinsights/asz-pull-judge-cluster/performance`) after exporting needed metrics.
+
+## HTML reports with the newer local CLI
+
+The cloud image and bootstrap remain pinned to the version used in the experiment.
+The blog's HTML export commands require the newer asz CLI with `-show -run N`,
+`-format html` and `-goals`. Until that change is merged and pinned, build that CLI
+from a source checkout containing the report changes, as the blog describes.
+No collector redeployment or replay of the agent conversation is needed.
+
+`scenarios/judge-goals.yaml` lists the six design goals. On an existing run,
+`judge -regroup 1 -goals FILE` calls the evaluator to group its targets under those
+goals without changing the original criteria or scores. Then export with
+`judge -show -run 1 -format html -remote-conversation REMOTE/ID:TAG > report.html`.
+Exporting reads saved results and calls no model. HTML reports of pulled snapshots
+include evaluation evidence excerpts but do not embed the original conversation
+steps; use `asz view` for those.
+
+The checked-in [HTML report](../../docs/blog/pull-judge/assets/judge-C.html) was
+rendered from cloud snapshot C, Claude run 1, after grouping it by this goal file.
+Save the file and open it locally. The original partial stages and disputed
+criteria remain visible.
