@@ -176,7 +176,8 @@ bash scripts/down.sh check
 
 ## 参考
 
-- [asz pull（本次固定版本）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/remote-pull.md)
-- [asz judge（本次固定版本）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/judge.md)
-- [判定、证据范围与成本模型](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/concepts-and-designs/conversation-judge.md)
+- [Apache SkyWalking AI Sessionizer 官方文档](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/readme/)
+- [asz pull（官方文档）](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/)
+- [asz judge（官方文档）](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)
+- [判定、证据范围与成本模型](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)
 - [AgentCore Runtime 的版本、endpoint 与 session](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-how-it-works.html)
