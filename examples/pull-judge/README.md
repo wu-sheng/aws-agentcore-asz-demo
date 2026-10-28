@@ -24,7 +24,7 @@ From this directory:
 bash scripts/bootstrap.sh
 ```
 
-This pins asz and its recorder to `4ff3d426780d28ef06bced7050d60426e9cebbff`, installs
+This pins asz and its recorder to `341f8c0c9cb8245669cbe45ff5393f6972e05616`, installs
 the agent dependencies into `.venv`, runs the business-tool tests and starts a temporary
 local asz service to verify TLS, wrong-token rejection and authenticated pull listing.
 It makes no Bedrock calls and creates no cloud resources.

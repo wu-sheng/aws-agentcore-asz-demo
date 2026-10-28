@@ -156,7 +156,7 @@ production 发布包生成成功，与部署权限被拒绝是两个事实。报
 ## 参考资料
 
 - [原示例仓库](https://github.com/wu-sheng/aws-agentcore-asz-demo)
-- [Pull 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/setup/remote-pull.md)
-- [Judge 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/setup/judge.md)
-- [Judge 的判定与成本模型](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/concepts-and-designs/conversation-judge.md)
+- [Pull 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/remote-pull.md)
+- [Judge 使用指南（写作参考提交）](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/judge.md)
+- [Judge 的判定与成本模型](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/concepts-and-designs/conversation-judge.md)
 - [AgentCore VPC 连接](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html)

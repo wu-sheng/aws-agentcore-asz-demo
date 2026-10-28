@@ -2,7 +2,7 @@
 # Prepare only this example's toolchain; do not change the previous blog demo.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ASZ_COMMIT=4ff3d426780d28ef06bced7050d60426e9cebbff
+ASZ_COMMIT=341f8c0c9cb8245669cbe45ff5393f6972e05616
 cd "$ROOT"
 for tool in git go uv openssl; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 1; }

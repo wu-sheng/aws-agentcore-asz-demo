@@ -156,7 +156,7 @@ Local snapshots and their judge runs expire. Archive the complete experiment sep
 ## References
 
 - [Original example repository](https://github.com/wu-sheng/aws-agentcore-asz-demo)
-- [Pull guide at the writing reference commit](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/setup/remote-pull.md)
-- [Judge guide at the writing reference commit](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/setup/judge.md)
-- [Judge outcomes and cost model](https://github.com/apache/skywalking-ai-sessionizer/blob/4ff3d426780d28ef06bced7050d60426e9cebbff/docs/en/concepts-and-designs/conversation-judge.md)
+- [Pull guide at the writing reference commit](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/remote-pull.md)
+- [Judge guide at the writing reference commit](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/setup/judge.md)
+- [Judge outcomes and cost model](https://github.com/apache/skywalking-ai-sessionizer/blob/341f8c0c9cb8245669cbe45ff5393f6972e05616/docs/en/concepts-and-designs/conversation-judge.md)
 - [AgentCore VPC connectivity](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html)
