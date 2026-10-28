@@ -1,68 +1,116 @@
 # Collect Cloud Sessions, Evaluate Locally: Analyzing AI Agents on Amazon Bedrock AgentCore with Apache SkyWalking AI Sessionizer
 
-> Review draft, October 28, 2026. Both language versions use the same real AgentCore experiment and a disclosed simulated business environment. See the [experiment record](CLOUD-RESULTS.md) for evidence, disputed judgments and measurement details. Not yet published to AWS Builder.
+Once an agent runs in the cloud, how do you retain its execution history and evaluate its work using the CLI on your development machine? This tutorial follows four steps with a release assistant that makes real Amazon Bedrock calls: deploy the agent and collector, pull a conversation, configure a local judge, and read the report.
 
-After an agent says “done,” several questions remain. Did it satisfy the original goal or a narrower interpretation? Did repeated work follow a change in requirements, or did the agent run dependent tools in parallel? Does a submitted request establish that approval has been confirmed?
+The [previous AgentCore walkthrough](https://builder.aws.com/content/3KjX67DohBgEr8yPadw5MoDSV5C/agentcore-langgraph-agent) introduced conversation and file-change recording with Apache SkyWalking AI Sessionizer (`asz`). Here, remote server, `pull`, and `judge` separate continuous collection from evaluation on demand. The cloud retains the records; the developer starts evaluation locally. The cloud collector needs no evaluator CLI or CLI login session.
 
-In the [previous AgentCore walkthrough](https://builder.aws.com/content/3KjX67DohBgEr8yPadw5MoDSV5C/agentcore-langgraph-agent), Apache SkyWalking AI Sessionizer (`asz`) preserved execution records and file changes. This experiment follows those records further: **keep collection in the cloud, pull selected conversations when needed, and evaluate them with a local agent CLI.**
+## 1. Deploy the agent and asz collector
 
-We deployed a LangGraph agent using a real Amazon Bedrock model to Amazon Bedrock AgentCore Runtime, completed seven turns, pulled three snapshots, and ran local judgments. The results show completed work, rework, missing evidence and cancellation. They also show why an evaluator's interpretation of a goal needs review.
+### What this example deploys
 
-## A release assistant that really calls Bedrock
+The agent uses LangGraph and `ChatBedrockConverse` inside Amazon Bedrock AgentCore Runtime, calling `us.amazon.nova-pro-v1:0` in `us-east-1` with temperature 0. The model chooses its tool calls. There are no scripted model responses or predetermined judge results.
 
-The agent uses `ChatBedrockConverse` with `us.amazon.nova-pro-v1:0` in `us-east-1`, temperature 0 and a maximum output of 2,048 tokens. Missing model configuration is an error; there is no scripted model fallback. The model chooses its tools and subsequent actions.
+The business environment is a release simulator. Tools write JSON configuration, validate it, create release bundles, and persist simulated deployments and acceptance requests as state files. Production deployment is denied by a permission rule. These tools do not deploy a real production application. Bedrock inference, AgentCore execution, collection, and local evaluation are real.
 
-The business system is simulated. Tools actually read and write JSON files, validate a schema, build bundles containing the configuration, and persist simulated deployments and acceptance requests. A permission rule denies production deployment. The acceptance lookup tool is configured to be unavailable. These tools do not operate a real production application.
-
-The available tools are `read_file`, `write_file`, `validate_config`, `build_release`, `deploy`, `get_deployment`, `submit_acceptance` and `get_acceptance`. Each conversation has a separate workspace. The AgentCore session ID also identifies its LangGraph thread. The recorder watches tools that modify files and records changes across their invocation windows.
-
-On AgentCore, Bedrock access uses the runtime's IAM role. A Bedrock API token was used during local preparation, but it was not placed in the image or runtime configuration.
-
-The cloud collector, local CLI, LangChain instrumentation and file recorder are pinned to `341f8c0c9cb8245669cbe45ff5393f6972e05616`, including the latest #94 update used in this experiment. The example records dependencies and image build details.
-
-## Cloud collection, local evaluation on demand
-
-```mermaid
-flowchart LR
-  A[AgentCore / LangGraph agent] -->|LangSmith tracing| S[asz on ECS Fargate]
-  A -->|File changes| E[Shared EFS]
-  E --> S
-  S --> D[Persistent conversation files]
-  S -->|HTTPS + token / asz pull| L[Local snapshots]
-  L --> V[asz view]
-  L --> J[asz judge + local CLI]
-  J --> M[CLI model service]
+```text
+LangGraph agent in AgentCore
+  ├─ Model calls → Amazon Bedrock
+  ├─ Traces → private ALB → asz on ECS Fargate
+  └─ File changes → shared EFS → asz
+                                  │
+                            HTTPS / asz pull
+                                  ↓
+                         Local conversation snapshot
+                           ├─ asz view
+                           └─ asz judge → local CLI → CLI's model service
 ```
 
-The collector runs as a separate ECS Fargate task with 0.5 vCPU and 1,024 MiB of memory, storing files on EFS. We selected a five-second collection interval so the demonstration could show results soon after each interaction.
+The collector runs in a separate Fargate task with 0.5 vCPU and 1 GiB memory, storing records on EFS. Agent traces reach the ingestion port through a private ALB. Local pull requests reach asz through a public NLB, which passes TCP through to TLS termination inside asz. Ingestion and pull use separate tokens, and the pull endpoint permits only the configured client egress IP.
 
-Tracing reaches port 1985 through a private ALB. Remote pull uses a separate token. An NLB forwards TCP to native TLS in asz, with ingress restricted to the client's outbound IP. The experiment uses a self-signed certificate, verified locally through `ca_file` and `server_name`. An incorrect token returned HTTP 401. The NLB uses TCP health checks so an authentication-protected page's 401 response is not treated as a service failure.
+“Local evaluation” describes where the snapshot, evaluator process, and results live. Conversation content read by the CLI still goes to its model service.
 
-The cloud collector does not install an evaluator CLI or maintain its login session. Evaluation starts only when the developer explicitly runs `asz judge`. “Local” describes the process, snapshots and results: the conversation content an evaluator reads still goes to its model service.
+### Prepare the environment
 
-## Seven turns with evidence to inspect
+Install Git, Go 1.27+, uv, OpenSSL, AWS CLI, OpenTofu, and a running Docker engine. Your AWS identity needs permission to create the example infrastructure and invoke the selected Bedrock model in `us-east-1`. For evaluation, install and sign in to Claude Code or Codex CLI.
 
-| Turn | User request | Observed behavior |
+The example lives in its own `examples/pull-judge/` directory. The earlier article's agent, configuration, and deployment scripts remain unchanged.
+
+```sh
+git clone --branch poc/pull-judge https://github.com/wu-sheng/aws-agentcore-asz-demo.git
+cd aws-agentcore-asz-demo/examples/pull-judge
+bash scripts/bootstrap.sh
+export PATH="$PWD/.work/bin:$PATH"
+```
+
+`bootstrap.sh` builds pinned versions of asz and the file recorder, installs Python dependencies, runs business-tool tests, and checks local HTTPS and authenticated pull. This walkthrough used commit `341f8c0c9cb8245669cbe45ff5393f6972e05616`. Bootstrap creates no cloud resources and makes no Bedrock calls.
+
+Check your AWS management credentials. Sign in first if you do not have a valid session:
+
+```sh
+aws login
+aws sts get-caller-identity
+```
+
+The deployed agent accesses Bedrock through its Runtime IAM role. A local Bedrock API token does not need to go into the image or deployment configuration.
+
+### Create the cloud environment
+
+Run these commands from `examples/pull-judge/`. Replace `YOUR_PUBLIC_IPV4` with your actual public egress IPv4 address. If using a proxy, use its egress address.
+
+```sh
+.venv/bin/python scripts/prepare-cloud.py --client-ip YOUR_PUBLIC_IPV4
+
+AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-pull-judge-agent:b3e872bfb9a26fbd8bfac6eab6073d241b79c904 \
+  bash scripts/up.sh
+```
+
+This is the ARM64 image built by GitHub Actions and used in this run. `up.sh` checks AWS identity and model access, copies the image into your account's ECR, and uses OpenTofu to create networking, EFS, the Fargate collector, and the AgentCore Runtime. It writes a resource manifest to `.work/cloud/resources.txt`. AWS resources and model calls incur charges.
+
+`prepare-cloud.py` generates the example TLS certificate and deployment parameters. The infrastructure writes this core remote server configuration for asz, providing the certificate, key, and token files during deployment:
+
+```yaml
+remote_server:
+  tokens_file: /asz/config/tokens
+  tls:
+    cert_file: /asz/config/cert.pem
+    key_file: /asz/config/key.pem
+```
+
+The example certificate is self-signed and valid for seven days. The client verifies it using a CA file and certificate name. For longer use, configure your own certificate and renewal process. See the [official pull documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/) for remote server configuration.
+
+## 2. Run a conversation and pull it locally
+
+### Give the agent a task that evolves
+
+After deployment, run:
+
+```sh
+.venv/bin/python scripts/cloud.py
+```
+
+The runner sends the seven requests in `scenarios/release.json` to one AgentCore session. Its session ID also serves as the LangGraph thread ID, preserving context across requests.
+
+| Turn | Work requested | What it lets us inspect |
 | --- | --- | --- |
-| 1 | Prepare and validate staging with two replicas and a 300-second timeout; do not deploy | Validation ran before the write finished; a retry passed |
-| 2 | Change the timeout to 600 seconds and validate again | The first validation read the old value; the model retried and validation then read 600 |
-| 3 | Build, deploy to staging, then query and verify | Deploy returned success, but a parallel query read `not_deployed`; the model did not query again |
-| 4 | Build and deploy production; report successes and failures | After recovering from initial validation/build failures, it built a valid bundle; deployment was denied |
-| 5 | Submit acceptance, confirm approval and retain the ID | Submission succeeded with `approved: null`; the model reported unknown without calling the lookup tool |
-| 6 | Inspect configuration and propose autoscaling; wait for confirmation | It proposed a plan without another inspection call or file modification |
-| 7 | Cancel autoscaling, retain two replicas and summarize | No further tool calls or file changes; it returned a summary |
+| 1 | Create and validate staging configuration with two replicas and a 300-second timeout; do not deploy | File delivery and validation |
+| 2 | Change the timeout to 600 seconds and validate again | Whether delivery follows a revised requirement |
+| 3 | Build, deploy to staging, then query and verify | Execution versus confirmation of the result |
+| 4 | Build and deploy to production; explain successes and failures | A successful build with a denied deployment |
+| 5 | Submit acceptance, confirm approval, and retain the request ID | Successful submission versus unknown approval |
+| 6 | Inspect configuration and propose autoscaling; wait for confirmation | Planning versus implementation |
+| 7 | Cancel autoscaling, keep two replicas, and summarize | Cancellation and the final summary |
 
-This run did not call `get_acceptance`. We therefore cannot claim that it observed the unavailable acceptance service. Unavailability was a fixture condition; the actual record establishes that the submission response contained no approval decision.
+The runner pulls snapshots A, B, and C after turns 1, 5, and 7. It prints a `.work/cloud-TIMESTAMP` directory containing `turn-*.json` responses, `checkpoints.json` with snapshot tags, and the generated local configuration at `client/asz.yaml`. Tool calls and scores can differ on another run because the model chooses its actions.
 
-![Cloud configuration change replayed from the local snapshot](assets/cloud-change.png)
+### Understand the pull configuration
 
-The screenshot comes from the pulled cloud conversation: `configs/staging.json` changed from 300 to 600 seconds. Tool results also show that the first parallel validation read the old configuration, while a later retry read the new value. The final answer alone would hide that sequence.
+Enter the printed directory's `client/` subdirectory, substituting your timestamp:
 
-The full conversation contains seven user turns, 17 model calls, 21 tool calls and 11 change records. The view reports `verified`, with no unresolved items. Change-record count is not a count of distinct files.
+```sh
+cd .work/cloud-TIMESTAMP/client
+```
 
-## Pull a fixed version of the conversation
-
-Configure a named remote locally. This is a configuration template: use your deployment output and credential paths, and keep tokens out of articles and repositories.
+The generated `asz.yaml` already contains the endpoint, token file, CA file, and storage path. Its essential structure is:
 
 ```yaml
 storage:
@@ -71,12 +119,14 @@ adapters: []
 remotes:
   - name: demo
     url: https://YOUR_NLB_HOST:8788
-    token_file: ./secrets/demo.token
-    ca_file: ./secrets/demo-ca.pem
+    token_file: /path/to/demo.token
+    ca_file: /path/to/demo-ca.pem
     server_name: asz-pull-judge.internal
 ```
 
-`server_name` matches the experiment's certificate. A certificate trusted by the system and matching the URL hostname can use the corresponding simpler configuration.
+`demo` is the client's name for the remote service. `token_file` supplies authentication; `ca_file` and `server_name` verify this example's certificate. This snippet explains the structure; keep using the actual generated configuration.
+
+To list, pull, and inspect conversations manually:
 
 ```sh
 asz pull -list -remote demo
@@ -84,102 +134,201 @@ asz pull demo/CONVERSATION_ID
 asz view
 ```
 
-Take the conversation ID from the remote listing. We pulled after turns 1, 5 and 7. Each tag fixes the records at that point; later interactions do not modify an existing snapshot.
+Get `CONVERSATION_ID` from the list and `SNAPSHOT_TAG` from the pull output or `checkpoints.json`. The reference `demo/CONVERSATION_ID:SNAPSHOT_TAG` selects a fixed snapshot. Later interactions do not change it. Pulling the same head again returns `unchanged`.
 
-| Snapshot | Turns | Model calls | Tag | Single pull duration |
-| --- | ---: | ---: | --- | ---: |
-| A | 1 | 3 | `20261028T012012.181192000Z` | 7.70 s |
-| B | 5 | 15 | `20261028T012311.930162000Z` | 11.52 s |
-| C | 7 | 17 | `20261028T012355.350667000Z` | 10.12 s |
+In `asz view`, open the pulled conversation to inspect requests, model calls, tool results, and file changes. This complete conversation recorded 17 model calls, 21 tool calls, and 11 changes. The following view shows the timeout in `configs/staging.json` changing from 300 to 600 seconds.
 
-Pulling C again returned `unchanged` and took 10.46 seconds. Reusing data does not guarantee a shorter end-to-end request: these calls crossed a regional proxy connection, with only one sample of each operation. A read-only status check after turn 5 also encountered a TLS interruption. We retained the five successful responses, resumed collection and pull, then executed turns 6 and 7 without replaying earlier agent operations.
+![Replaying a cloud configuration change in the local snapshot](assets/cloud-change.png)
 
-## Judge the snapshots locally
+## 3. Configure and run the local judge
 
-We first used an installed and authenticated Claude Code CLI:
+### Choose an evaluator
+
+Keep the existing `storage`, `remotes`, and other settings in `client/asz.yaml`, and merge the following `judge` section. Do not create two `judge` keys. The generated file uses JSON syntax, which is valid YAML; either edit that JSON or convert the configuration to YAML.
+
+```yaml
+judge:
+  timeout: 15m
+  mode: single
+  read_bytes: 524288
+  evaluators:
+    claude:
+      kind: cli
+      program: claude
+      args: []
+      max_turns: 60
+    codex:
+      kind: cli
+      program: codex
+      args: []
+```
+
+`claude` and `codex` are already built-in evaluator names. Expanding them here makes the settings explicit. Install and authenticate only the CLI you intend to use, and ensure its program is available on your local PATH.
+
+| Setting | How this walkthrough uses it |
+| --- | --- |
+| `kind: cli` / `program` | asz starts the local CLI, which uses its authenticated model access |
+| `timeout: 15m` | Limits one evaluator call, rather than the total report duration |
+| `mode: single` | Gives each stage needing evaluation to one evaluator call, which can make multiple model requests |
+| `read_bytes: 524288` | Limits navigation response bytes read by one evaluator call to 512 KiB |
+| `max_turns: 60` | Bounds Claude CLI turns; adjust alongside time and reading budgets for longer conversations |
+
+This example leaves `model` unset, using the CLI's default. To select a model explicitly, set `model` under the evaluator to an identifier supported by that CLI and available to your account. See the [judge documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/) for other evaluators and stage-specific plans.
+
+### Evaluate a fixed snapshot and retrieve the result
+
+Run these commands from `client/`, replacing the conversation ID and tag:
 
 ```sh
 asz judge -evaluator claude \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 
+asz judge -list \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+
 asz judge -show 1 \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
+
+asz judge -show 1 -json \
+  -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG > judge-C.json
+```
+
+The first command creates a judge run. `-list` lists saved runs, `-show 1` reads run 1, and `-json` exports its stage data. If earlier runs already exist, select the intended run number from the list. Viewing and exporting do not invoke the model again.
+
+These commands read an existing local snapshot, so the cloud collector need not be online. To pull the current cloud head before judging, use an untagged reference:
+
+```sh
+asz judge -evaluator claude -pull \
+  -remote-conversation demo/CONVERSATION_ID
+```
+
+To use another evaluator on the same snapshot:
+
+```sh
+asz judge -evaluator codex \
   -remote-conversation demo/CONVERSATION_ID:SNAPSHOT_TAG
 ```
 
-Add `-pull` only when the command should fetch the current cloud head first. To test independence from the collector, we copied the configuration and changed its remote URL to `https://127.0.0.1:9`. A real `pull -list` failed with connection refused, while judging existing snapshots without `-pull` continued. We subsequently stopped the agent session and began cloud cleanup; the local evidence remained available.
+The new result gets its own run; earlier reports remain. Keep the snapshot fixed, then compare how each evaluator defines targets and cites evidence.
 
-The evaluator identifies targets and criteria, navigates a read-only conversation interface, and cites tool results and file changes. asz aggregates recorded usage and configured prices. A, B and C were judged separately; this is not an automatic trend comparison.
+## 4. Read the judge report
 
-| Snapshot / Claude run 1 | Report state | Record score | Final score | Efficiency |
-| --- | --- | ---: | ---: | ---: |
-| A | partial | 100 | 100 | 71 |
-| B | complete | 81 | 75 | 73 |
-| C | partial | 83 | 75 | 79 |
+Read in this order: **stage status, targets and criteria, evidence and delivery history, then scores and cost**. The examples below come from Claude run 1 on snapshot C. Excerpts omit some lines and long evidence text.
 
-The [judge summary](assets/judge-summary.json) preserves the stage states, criteria and scores. Read these values alongside the target definitions and evidence. They are not standalone quality conclusions. C has one cancelled target excluded from achievement scoring. The agent recorded 46,694 input and 1,840 output tokens. These calls were unpriced in the current asz configuration, which does not mean their cost was zero. The three Claude reports together reported approximately USD 5.86; this is CLI-reported cost, not an actual payment statement.
+### Start with report completeness
 
-## What the reports reveal—and what needs review
+The report starts with stage status. This run reported:
 
-**Achievement and rework can coexist.** A's configuration target was `achieved`, with a recovery after failed validation. C retains the user's change from 300 to 600 seconds as well as execution mistakes. A requirement change should not automatically count as avoidable agent work.
+```text
+ledger       complete  by asz, computed
+targets      complete  by claude
+achievement  partial  ... 2 criteria or claims without evidence beyond the agent's words were weakened
+subtasks     complete  by claude, no call, nothing to answer
+efficiency   partial  ... 1 of 8 talks were not labeled
+close        partial  by asz, computed
+```
 
-**Successful deployment and completed verification are separate criteria.** Staging's deploy returned success, but a concurrent query read the old `not_deployed` state. Without another query, the requested verification was incomplete. Claude classified that target as `contradicted` and assigned a final score of zero. A human reviewer must still retain the successful deploy result; the score does not establish that deployment never happened.
+`ledger` summarizes recorded usage; `targets` identifies user targets; `achievement` evaluates results; `subtasks` handles delegated work; `efficiency` examines avoidable work; `close` assembles the result. This example has no subtasks, so that stage needed no model call.
 
-**An evaluator may narrow the goal.** Production returned `denied` and `deployed: false`. However, Claude wrote a criterion as “a production deployment is attempted.” Attempting deployment and reporting failure then satisfied it, so the target appeared `achieved`. That is a reason to inspect the interpretation of the user's request, not evidence that production was deployed.
+Here, `partial` describes incomplete or weakened evaluation output. The accompanying text explains what happened: two judgments relying only on the agent's words were weakened, and the efficiency stage left an item unlabeled. Read these notes even when the command exits successfully. A report marked `partial` is different from a target marked `partly`, which means partial achievement.
 
-**Unknown status does not disappear behind an achievement label.** The acceptance request was saved, but its approval field was null. Claude interpreted the criterion as reporting approval status and also returned `achieved`. It did not create a separate `cannot_verify` target. We should neither invent that label for the demonstration nor translate `achieved` into “acceptance approved.”
+### Check that targets match the user's request
 
-**Cancellation is different from failure.** C's autoscaling target was `cancelled` and excluded from scoring. The proposed plan still needs review: it did not inspect the configuration again, and its new fields exceeded the existing schema. Cancellation does not validate the earlier plan.
+`t1` and `t2` identify targets within this run. `t1.c3` identifies a criterion, and `t1.e3` a delivery event. Match the target and criteria to the original request before accepting an outcome label.
 
-**A partial report is different from a partly achieved target.** A discarded one observation during citation, excerpt or duplicate checks. C weakened two judgments lacking evidence beyond the agent's own words, and its efficiency stage also left one item unlabeled. `partial` describes the evaluation artifact; `partly` describes a target's achievement. They are not interchangeable.
+The configuration target includes:
 
-We then ran `asz judge -evaluator codex` against the same C snapshot, retaining it as run 2. It classified staging verification and approval confirmation as `partly`, but production still used an “attempt deployment” criterion.
+```text
+t1  A validated staging configuration ... 100/100
+    outcome   achieved; standing t1.e3, t1.e4; 2 rounds of rework
+    record    achieved: 5 of 5 criteria met, on observed result; closed
+    why       t1.c3 met: idle timeout is 600 seconds (changed from the original 300)
+                read: The recorded change shows the timeout line going from 300 to 600 and the final validation reads 600.
+```
 
-| Target in C | Claude run 1 | Codex run 2 | Evidence a reviewer must retain |
-| --- | --- | --- | --- |
-| Staging deployment and verification | contradicted, 0 | partly, 67 | Deploy returned success; query verification remained incomplete |
-| Production | achieved, 100 | achieved, 100 | Deployment was denied; both criteria required an attempt |
-| Acceptance | achieved, 100 | partly, 67 | Submission succeeded; approval remained unknown |
-| Autoscaling | cancelled, unscored | cancelled, unscored | No implementation; the plan still needs review |
+File changes and validation reading 600 support the completed target. `standing` names the deliveries still in effect, while `history` shows the 300-second version being replaced by the 600-second version. The two rounds of rework mean that a score of 100 does not imply success on the first attempt or no wasted effort.
 
-The Codex report was also `partial`, with a final score of 80 and efficiency of 94. One main target could not be established, and one judgment lacking independent evidence was weakened. Its record did not report a model name or cost; we did not infer them. One comparison cannot establish which CLI is generally better. It does demonstrate the value of preserving the same snapshot and inspecting criteria and citations.
+In this run, the agent issued writes and validation in parallel. Validation encountered a missing file or stale value, and the model retried. The user's change from 300 to 600 is a requirement change; repairing incorrect tool ordering is a different kind of work. Rework does not itself lower achievement once the target is met. Its cost belongs in the efficiency analysis.
 
-## What work stayed on the cloud service?
+### Follow evidence to the work and the gaps
 
-We queried the same ECS service's CloudWatch metrics with a 60-second period. CPU percentage is relative to its allocated 0.5 vCPU; memory percentage is relative to 1,024 MiB. Averages below are means of the per-minute Average values; maxima are the largest CloudWatch Maximum values in each window.
+| Report section | What to read |
+| --- | --- |
+| `why` | Which criterion was met and the supporting evidence |
+| `claims` | Whether the agent's statements are supported, contradicted, or unconfirmed |
+| `history` / `standing` | How delivery evolved and which versions remain in effect |
+| `did` | Actual file changes, remote operations, and delivered answers |
+| `gap` | Unmet criteria or insufficient evidence |
+| `cost` | Calls, tokens, time, and avoidable work for the target |
 
-| Phase (UTC) | Minute samples | CPU average / maximum | Memory average / maximum |
-| --- | ---: | ---: | ---: |
-| Idle before the conversation, 01:18–01:19 | 1 | 4.10% / 4.19% | 4.49% / 4.49% |
-| Window containing interaction and pulls, 01:19–01:25 | 6 | 9.35% / 24.16% | 5.20% / 5.47% |
-| During local judging, 01:25–01:31 | 6 | 4.33% / 4.54% | 5.29% / 5.37% |
+A `tool/... returned` reference points to a tool result; `msg/...` to an agent reply; `input/...` to a user request; identifiers such as `o3` point to change records. Check the underlying records in `asz view`. The text following `read:` is the evaluator's interpretation. `why, proposed` and `improvement, proposed` offer hypotheses and suggestions that also need to be read against the evidence.
 
-The supported conclusion is narrow: this small conversation was collected and pulled on the stated allocation, and cloud CPU during local judging was close to the earlier idle sample. Collection polling, EFS and health checks still did work. This is not zero overhead, and one-minute aggregation cannot isolate each short pull peak or establish production throughput.
+The staging target shows why this matters:
 
-Network metrics were retained as service-level Bytes/Second, not interpreted as bytes transferred by an individual pull. Collection and pull overlapped in some minutes, and the idle baseline contains only one sample. These are reproducible PoC observations, not a capacity benchmark. See [ECS service metrics](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html) and [Container Insights metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-metrics-ECS.html).
+```text
+t2  The release bundle is built ... 0/100 (40 by the record)
+    outcome   contradicted; standing t2.e1, t2.e2, t2.e3
+    record    partly: 2 of 4 criteria met, on observed result; closed
+```
 
-## Reproduce the experiment and retain its evidence
+`deploy` returned success and wrote simulated deployment state. However, `get_deployment` ran in parallel, read `not_deployed`, and was never retried. The report can list bundle and state-file changes under `did` while also showing that the query did not confirm the final state. It classified the delivered conclusion as `contradicted`, reducing the final score to zero.
 
-The [isolated example](https://github.com/wu-sheng/aws-agentcore-asz-demo/tree/poc/pull-judge/examples/pull-judge) lives under `examples/pull-judge/`, with the agent, seven requests, separate OpenTofu configuration, cloud/pull/judge runners and teardown script. Its ARM64 image is built by a dedicated GitHub Actions workflow under a separate package name and commit tag. The previous article's code, commands and pinned versions are unchanged.
+This does not establish that deployment never happened. Check “deployment returned success” separately from “a subsequent query verified deployment.” The report itself also needs review: it marks querying after deployment as met while acknowledging that the query ran alongside deployment. Resolve that inconsistency using the recorded tool ordering.
 
-After preparing dependencies and AWS authentication as described in the example README:
+Other outcomes in the same report illustrate additional reading patterns:
+
+| Situation | This run's result | How to interpret it |
+| --- | --- | --- |
+| Production deployment denied | Target labeled `achieved` | The evaluator wrote the criterion as attempting deployment. The tool returned `denied` and `deployed: false`; the label does not establish deployment success |
+| Acceptance submitted with `approved: null` | Target labeled `achieved` | The criterion became reporting approval status. Submission and confirmation of approval remain separate |
+| User cancels autoscaling | `cancelled`, unscored | Cancellation is excluded from achievement scoring; the earlier plan can still be reviewed |
+
+This report contained no separate `cannot_verify` target. If another report does, it means the evidence cannot establish the target's result. That differs from `not_achieved`, where unmet criteria have supporting evidence. Individual criteria can also be `unknown` or `not_captured`; read their reasons. An agent answering “unknown” does not guarantee that the evaluator assigns the corresponding target label.
+
+### Read the scores and cost as different measures
+
+The report ends with this actual output:
+
+```text
+score
+  achievement  83/100 over 5 targets judged: achieved 3, partly 2, not achieved 0; 0 cannot be verified; 1 cancelled or replaced, not scored
+  final        75/100 over the targets scored, 83 by the record
+  efficiency   79/100: avoidable 21% of the reviewed cost, by tokens; 100% of the targets' cost reviewed
+  delivered    66% of the targets' cost went to targets achieved, by tokens
+
+conversation   48.5k tokens
+judging        263.8k tokens (3 stages unpriced); the evaluators reported 2.57 USD
+```
+
+**`achievement` measures completion by the record.** The five eligible targets scored 100, 40, 100, 100, and 75, averaging 83. The cancelled target is excluded. Staging's 40 comes from two met criteria divided by four criteria plus one contradicted claim: `2 / (4 + 1)`. It is therefore more than a simple percentage of criteria met.
+
+**`final` also considers contradiction or reversion of standing deliveries.** Staging's delivered conclusion was contradicted, making its final score zero. The other four target scores stayed unchanged, giving an average of 75. Use `history`, `standing`, and the cited contradiction to understand this adjustment. The [full rules](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/) also distinguish contradiction of an entire delivered conclusion from contradiction of individual criteria.
+
+**`efficiency` measures the share of reviewed cost not classified as avoidable.** Here the unit is tokens: about 21% was classified as avoidable, giving approximately 79. This is neither accuracy nor a 79% speed improvement. The adjacent 100% describes coverage of target cost. Read it alongside the stage's `partial` note; it does not establish that every part of the analysis is complete.
+
+**`delivered` is the share of target cost allocated to achieved targets.** Here that is approximately 66%, a cost distribution rather than another achievement score.
+
+Finally, distinguish two costs. `conversation` is the evaluated agent's model usage; `judging` is the evaluation's own usage. Reading evidence and making repeated model requests can consume more tokens than the original conversation. `unpriced` means pricing information is incomplete, not that execution was free. The reported 2.57 USD comes from the evaluator and is not an AWS invoice.
+
+Turn findings into concrete changes. For this agent, sequence dependent tools as “write → validate → build → deploy → query,” and require the final summary to identify unconfirmed states. Run the revised agent, pull a new snapshot, and judge again, continuing to inspect the criteria and evidence.
+
+## Preserve results and clean up
+
+Snapshots and their judge results have retention limits. Archive the local snapshots, reports, and logs you need, excluding tokens and TLS private keys. Then return to `examples/pull-judge/` and run:
 
 ```sh
-.venv/bin/python scripts/prepare-cloud.py --client-ip YOUR_PUBLIC_IPV4
-AGENT_IMAGE=YOUR_WORKFLOW_IMAGE bash scripts/up.sh
-.venv/bin/python scripts/cloud.py
-.venv/bin/python scripts/judge.py .work/cloud-TIMESTAMP
 bash scripts/down.sh --yes
 bash scripts/down.sh check
 ```
 
-For a proxied client, allow the actual proxy egress IP. Archive snapshots, judgments, tool evidence and required logs before deleting cloud EFS. Snapshots and their judgments have retention limits; keep a separate evidence archive that excludes tokens and TLS private keys.
+AWS-managed AgentCore network interfaces may delay final network cleanup. Follow the `check` output. The example README also covers removal of the experiment's Container Insights log group.
 
-We stopped the agent session and verified removal of the AgentCore runtime, Fargate tasks, EFS, NAT gateway, Elastic IP, load balancers and experiment log groups. AWS-managed AgentCore network interfaces still hold the private subnets and security group, so final VPC cleanup is waiting for their release. These remaining network resources have no independent usage charge. The experiment record retains the cleanup status and evidence locations.
+The [isolated example](https://github.com/wu-sheng/aws-agentcore-asz-demo/tree/poc/pull-judge/examples/pull-judge) contains the code, deployment parameters, and scripts. Other snapshots, the Codex comparison, and cloud load measurements are retained in the [experiment record](CLOUD-RESULTS.md).
 
 ## References
 
 - [Apache SkyWalking AI Sessionizer documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/readme/)
-- [asz pull documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/)
-- [asz judge documentation](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)
-- [Judgment, evidence scope and cost model](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)
-- [AgentCore runtime versions, endpoints and sessions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-how-it-works.html)
+- [asz pull: remote servers, authentication, and snapshots](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/remote-pull/)
+- [asz judge: commands and evaluator configuration](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/setup/judge/)
+- [Conversation Judge: targets, evidence, and scoring](https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/en/concepts-and-designs/conversation-judge/)
+- [AgentCore Runtime versions, endpoints, and sessions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-how-it-works.html)
