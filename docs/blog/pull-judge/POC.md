@@ -1,6 +1,6 @@
 # Pull / judge 博客 PoC 实施说明
 
-状态：真实 Bedrock 模型的七轮会话、本地采集、HTTPS pull 与本地 CLI judge 已实测；AgentCore 云端部署仍待 AWS 管理登录恢复。详见 [本地实测记录](LOCAL-RESULTS.md)。日期：2026-10-28。
+状态：真实 Bedrock 模型的七轮会话、本地采集、HTTPS pull 与本地 CLI judge 已实测；AgentCore 云端七轮会话和三个快照也已完成，新版 judge 正在核对。详见 [云端实测记录](CLOUD-RESULTS.md)。日期：2026-10-28。
 
 ## 已确认范围
 
@@ -116,10 +116,10 @@ examples/pull-judge/
 
 - [x] 新示例实现与工具状态测试通过，旧文件未改动。
 - [x] 使用真实模型的本地采集 → pull → judge 链路通过（judge 含 partial 结果，需如实解释）。
-- [ ] 按仓库约定构建独立部署镜像。
-- [ ] 真实 AgentCore 部署和七轮会话完成，证据归档。
+- [x] 按仓库约定构建独立部署镜像。
+- [x] 真实 AgentCore 部署和七轮会话完成，原始证据保存到独立目录。
 - [ ] 三个快照与 judge 结果保存，人工核查完成。
-- [ ] 本地 judge 独立于远程 asz 的验证完成。
+- [x] 本地 judge 独立于远程 asz 的验证完成（remote 改为不可达地址；pull 失败而已有快照可评估）。
 - [ ] 负载数据与局限写入两篇文章。
 - [ ] 中英文截图来自同一次实验；所有占位符替换。
 - [ ] 旧示例复现路径复查；新增资源清理结果记录。
@@ -132,4 +132,4 @@ examples/pull-judge/
 - [中文初稿](zh-CN.md)
 - [英文初稿](en.md)
 - [独立示例与本地测试入口](../../../examples/pull-judge/README.md)。五项业务状态测试、模型配置必填检查和本地 HTTPS/错误 Token 拒绝/认证 pull 列举已通过。
-- Bedrock API token 已支持真实模型调用。本地实测结果见 [LOCAL-RESULTS.md](LOCAL-RESULTS.md)；AWS 管理会话仍需恢复，尚无 AgentCore 云端实测结果。
+- Bedrock API token 已支持真实模型调用。本地实测结果见 [LOCAL-RESULTS.md](LOCAL-RESULTS.md)；AWS 管理会话已恢复，云端七轮实测见 [CLOUD-RESULTS.md](CLOUD-RESULTS.md)。

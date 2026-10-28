@@ -1,7 +1,7 @@
 # Pull and judge a release assistant
 
 Work in progress. The real Bedrock conversation, collection, HTTPS pull and local CLI
-judge have been exercised locally. AgentCore cloud deployment is still pending.
+judge have been exercised locally. The isolated AgentCore deployment also completed the seven-turn conversation; local evaluation reports are being reviewed.
 
 The agent uses a real Bedrock model through LangGraph. Its business environment is a
 disclosed simulator: configuration files, release bundles, deployments and acceptance
@@ -87,7 +87,7 @@ pull preflight passed. The seven-turn Nova Pro run produced 18 model calls and t
 snapshots; pulling the final head again returned unchanged. Local Claude Code judge runs
 produced reports, including a partial report whose invalid evidence observation was rejected.
 See [the local experiment record](../../docs/blog/pull-judge/LOCAL-RESULTS.md) for actual
-findings and limitations. AWS management login is still needed for AgentCore deployment.
+findings and limitations. The isolated cloud deployment and all seven turns have also completed; see [cloud evidence](../../docs/blog/pull-judge/CLOUD-RESULTS.md).
 The original tracked blog and demo files remain unchanged.
 
 ## Independent cloud experiment
@@ -104,7 +104,11 @@ AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-pull-judge-agent:COMMIT bash scri
 ```
 
 The cloud runner prints the evidence directory and retains the session ID, all responses,
-three snapshots, and pull durations. The judge runner copies the local configuration with
+three snapshots, and pull durations. If a read-only collection/pull request is interrupted,
+`cloud.py --resume .work/cloud-TIMESTAMP` keeps completed turns and continues on the same
+session. A pending invocation with no saved result must be inspected before replaying;
+resuming cannot extend AgentCore's session lifetime or restore expired in-memory state.
+The judge runner copies the local configuration with
 an unreachable remote address, checks that pulling fails, then judges the existing snapshots.
 It keeps the evaluator's model-service connection available. Inspect each report's state:
 a finished CLI process is not a guarantee that every judgment stage is complete.

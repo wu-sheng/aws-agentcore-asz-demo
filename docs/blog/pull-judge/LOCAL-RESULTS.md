@@ -51,3 +51,11 @@ B：run complete；4 个目标中 achieved 2、partly 2，完成分与最终分�
 change.png 已人工核对：staging.json 的 300 → 600；turn.png 展示 production 轮的错误调用。
 完整 prompt 截图过长，正式文章应选择清晰片段。最终文章须使用云端实验对应截图，并明确来源。
 原始数据与 judge 输出保留在忽略目录；发布前另存不含 token、TLS 私钥或部署凭据的长期证据包。
+
+## 升级到 #94 的本地回归
+
+随后按用户要求升级到 `341f8c0c9cb8245669cbe45ff5393f6972e05616`。
+再次完成真实 Nova Pro 七轮会话、HTTPS 认证检查与 A/B/C 三次 pull，材料位于
+`examples/pull-judge/.work/local-20261028T011051Z-987a/`。
+`asz verify` 检查 1 个 session、3 个 stream、169 条记录和 15 个 round，记录连续且摘要匹配。
+本节没有重用旧版 judge 结果来代表新版评估；正式云端实验使用新版独立执行 judge。

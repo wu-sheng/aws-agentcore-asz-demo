@@ -32,7 +32,7 @@ def main():
 
     def judge(checkpoint):
         pull = checkpoint["pull"]
-        ref = (pull["stdout"] if isinstance(pull, dict) else pull).strip()
+        ref = (pull["stdout"] if isinstance(pull, dict) else pull).strip().removesuffix(" unchanged")
         if not ref.startswith("demo/") or "\n" in ref or " " in ref:
             raise ValueError("Unexpected snapshot reference")
         label = checkpoint["checkpoint"]

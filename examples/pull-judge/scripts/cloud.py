@@ -35,6 +35,7 @@ def now():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--region", default="us-east-1")
+    parser.add_argument("--resume", type=Path, help="Resume saved turns without invoking them again")
     args = parser.parse_args()
     outputs = json.loads(subprocess.check_output(["tofu", "output", "-json"], cwd=ROOT / "infra"))
     value = lambda name: outputs[name]["value"]
@@ -43,10 +44,12 @@ def main():
     arn = value("agent_runtime_arn")
     if not arn.startswith("arn:"):
         raise ValueError("The independent runtime is not deployed")
-    work = ROOT / ".work" / ("cloud-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    work.mkdir(mode=0o700)
+    work = args.resume.resolve() if args.resume else ROOT / ".work" / ("cloud-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    if args.resume and not (work / "session.json").exists():
+        raise ValueError("Resume requires a saved session.json")
+    work.mkdir(mode=0o700, exist_ok=bool(args.resume))
     client = work / "client"
-    client.mkdir()
+    client.mkdir(exist_ok=bool(args.resume))
     token = value("pull_token")
     token_path = work / "token"
     token_path.write_text(token)
@@ -60,7 +63,7 @@ def main():
         "judge": {"timeout": "15m", "mode": "single", "read_bytes": 524288}})
     context = ssl.create_default_context(cafile=str(ca))
 
-    def api(path, bearer=token):
+    def api_once(path, bearer=token):
         # Connect to the load balancer while verifying the certificate's private DNS name.
         proxy_url = None if proxy_bypass(endpoint.hostname) else getproxies().get("https")
         if proxy_url:
@@ -85,6 +88,16 @@ def main():
         finally:
             conn.close()
 
+    def api(path, bearer=token):
+        # Status requests are read-only. Never automatically retry an agent invocation.
+        for attempt in range(3):
+            try:
+                return api_once(path, bearer)
+            except (OSError, http.client.HTTPException):
+                if attempt == 2:
+                    raise
+                time.sleep(2 ** attempt)
+
     def cli(*arguments):
         start, tick = now(), time.monotonic()
         result = subprocess.run([str(BIN), *arguments], cwd=client, text=True, capture_output=True, check=True)
@@ -97,29 +110,50 @@ def main():
     status, initial = api("/api/conversations")
     if status != 200:
         raise RuntimeError("Authenticated remote access failed")
-    initial_ids = {row["id"] for row in initial}
+    checkpoints = json.loads((work / "checkpoints.json").read_text()) if args.resume and (work / "checkpoints.json").exists() else []
+    own_ids = {point["conversation"]["id"] for point in checkpoints}
+    if args.resume and not own_ids:
+        raise ValueError("No saved conversation ID to resume safely")
+    initial_ids = {row["id"] for row in initial} - own_ids
     save(work / "pull-list.json", cli("pull", "-list", "-remote", "demo"))
     session = boto3.Session(region_name=args.region)
     # An invocation mutates simulator state; disable automatic retries to avoid duplicating a turn.
     runtime = session.client("bedrock-agentcore", config=Config(
         retries={"mode": "standard", "total_max_attempts": 1}, connect_timeout=15, read_timeout=300))
-    thread = "release-" + uuid.uuid4().hex
-    save(work / "session.json", {"thread_id": thread, "runtime_arn": arn, "region": args.region, "started": now()})
-    checkpoints = []
+    if args.resume:
+        saved = json.loads((work / "session.json").read_text())
+        if saved["runtime_arn"] != arn or saved["region"] != args.region:
+            raise ValueError("Resume runtime/region does not match the original session")
+        thread = saved["thread_id"]
+    else:
+        thread = "release-" + uuid.uuid4().hex
+        save(work / "session.json", {"thread_id": thread, "runtime_arn": arn, "region": args.region, "started": now()})
     for turn in json.loads((ROOT / "scenarios/release.json").read_text())["turns"]:
-        print("AgentCore real-model turn", turn["id"], flush=True)
-        start, tick = now(), time.monotonic()
-        response = runtime.invoke_agent_runtime(agentRuntimeArn=arn, runtimeSessionId=thread,
-            contentType="application/json", payload=json.dumps({"prompt": turn["prompt"]}).encode())
-        body = response["response"].read()
-        response["response"].close()
-        answer = json.loads(body)
-        save(work / f"turn-{turn['id']}.json", {"request": turn, "response": answer,
-            "started": start, "ended": now(), "seconds": time.monotonic() - tick,
-            "status_code": response["statusCode"]})
-        if response["statusCode"] != 200 or not answer.get("answer"):
-            raise RuntimeError("Agent did not return a successful answer; see evidence")
-        if "checkpoint" not in turn:
+        response_path = work / f"turn-{turn['id']}.json"
+        pending_path = work / f"turn-{turn['id']}.pending.json"
+        if response_path.exists():
+            saved_response = json.loads(response_path.read_text())
+            if saved_response["request"] != turn or saved_response.get("status_code") != 200 or not saved_response["response"].get("answer"):
+                raise ValueError("Saved turn is not a matching successful invocation")
+            print("Keeping already completed turn", turn["id"], flush=True)
+        else:
+            if pending_path.exists():
+                raise RuntimeError("A previous invocation has an unknown outcome; inspect it before replaying")
+            save(pending_path, {"turn": turn["id"], "started": now()})
+            print("AgentCore real-model turn", turn["id"], flush=True)
+            start, tick = now(), time.monotonic()
+            response = runtime.invoke_agent_runtime(agentRuntimeArn=arn, runtimeSessionId=thread,
+                contentType="application/json", payload=json.dumps({"prompt": turn["prompt"]}).encode())
+            body = response["response"].read()
+            response["response"].close()
+            answer = json.loads(body)
+            save(response_path, {"request": turn, "response": answer,
+                "started": start, "ended": now(), "seconds": time.monotonic() - tick,
+                "status_code": response["statusCode"]})
+            if response["statusCode"] != 200 or not answer.get("answer"):
+                raise RuntimeError("Agent did not return a successful answer; see evidence")
+            pending_path.unlink()
+        if "checkpoint" not in turn or any(point["checkpoint"] == turn["checkpoint"] for point in checkpoints):
             continue
         previous, stable = None, 0
         for _ in range(60):
@@ -143,7 +177,7 @@ def main():
         checkpoints.append({"checkpoint": turn["checkpoint"], "conversation": previous, "pull": pulled})
         save(work / "checkpoints.json", checkpoints)
         print(pulled["stdout"].strip(), flush=True)
-    save(work / "pull-repeat.json", cli("pull", "demo/" + previous["id"]))
+    save(work / "pull-repeat.json", cli("pull", "demo/" + checkpoints[-1]["conversation"]["id"]))
     save(work / "result.json", {"completed": now(), "thread_id": thread, "checkpoints": checkpoints})
     print("Seven turns and three cloud snapshots complete:", work, flush=True)
 
