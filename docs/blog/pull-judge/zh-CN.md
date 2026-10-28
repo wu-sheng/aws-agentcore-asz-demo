@@ -233,7 +233,7 @@ asz judge -show -run 1 -format html \
 
 本例是 remote pull 的快照。HTML 会显示评估保存的条件和证据摘录，但不会嵌入原始会话步骤；核对完整工具请求、返回和文件变化时，回到第三节的 `asz view`。
 
-### 第三步：不要只接受绿色的完成标签
+### 第三步：对照原始要求，核对完成条件和证据
 
 打开 production 任务的 Criteria，会看到本次 evaluator 将一个条件写成了“尝试部署”。于是虽然工具返回 `denied`、`deployed: false`，报告仍把任务标为完成。归组到我们的 production 目标下之后，这个条件也不会自动变成“部署成功”。
 

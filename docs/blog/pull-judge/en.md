@@ -233,7 +233,7 @@ This task shows a final score of zero while retaining 40 by the achievement reco
 
 This is a remote pull snapshot. The HTML includes saved criteria and evidence excerpts but does not embed the original conversation steps. Use `asz view` from section 3 to inspect full tool requests, responses, and file changes.
 
-### Third: Check more than the achieved label
+### Third: Compare criteria and evidence with the original requirements
 
 Open the production task's Criteria. In this run, the evaluator defined one condition as attempting deployment. It therefore marked the task achieved even though the tool returned `denied` and `deployed: false`. Grouping it under our production goal does not automatically change that criterion to successful deployment.
 
