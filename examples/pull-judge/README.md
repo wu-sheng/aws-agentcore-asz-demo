@@ -89,3 +89,31 @@ produced reports, including a partial report whose invalid evidence observation 
 See [the local experiment record](../../docs/blog/pull-judge/LOCAL-RESULTS.md) for actual
 findings and limitations. AWS management login is still needed for AgentCore deployment.
 The original tracked blog and demo files remain unchanged.
+
+## Independent cloud experiment
+
+The `poc/pull-judge` branch's `pull-judge-image` GitHub Actions workflow publishes an
+ARM64 image to a separate package with a commit tag. Never build and push this image locally.
+With AWS management credentials restored and an accessible real Bedrock model:
+
+```sh
+.venv/bin/python scripts/prepare-cloud.py --client-ip YOUR_PUBLIC_IPV4
+AGENT_IMAGE=ghcr.io/wu-sheng/aws-agentcore-asz-pull-judge-agent:COMMIT bash scripts/up.sh
+.venv/bin/python scripts/cloud.py
+.venv/bin/python scripts/judge.py .work/cloud-TIMESTAMP
+```
+
+The cloud runner prints the evidence directory and retains the session ID, all responses,
+three snapshots, and pull durations. The judge runner copies the local configuration with
+an unreachable remote address, checks that pulling fails, then judges the existing snapshots.
+It keeps the evaluator's model-service connection available. Inspect each report's state:
+a finished CLI process is not a guarantee that every judgment stage is complete.
+
+Use `scripts/metrics.py --start UTC_TIMESTAMP --output EVIDENCE/metrics.json` to export
+one-minute ECS metrics. Wait for CloudWatch ingestion before the final export; empty samples
+are missing data, not zero. Match the metric timestamps to the saved invocation/pull/judge windows.
+
+After copying evidence outside the cloud service, run `bash scripts/down.sh --yes` and
+`bash scripts/down.sh check`. AWS-managed AgentCore network interfaces may delay final
+network cleanup. Also remove the experiment's Container Insights performance log group
+(`/aws/ecs/containerinsights/asz-pull-judge-cluster/performance`) after exporting needed metrics.

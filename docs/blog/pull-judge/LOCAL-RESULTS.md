@@ -43,7 +43,7 @@ Evaluator：本地 Claude Code，报告的模型为 `claude-fable-5-1`。每个�
 - C：后续 build_release 内部已验证 600 秒配置，但无法使第二轮当时的“已验证”陈述变为正确。区分当时的证据与后来恢复后的最终状态。
 
 A 的 evaluator 报告成本为 1.00 USD，C 为 3.45 USD；这是 CLI 提供的估算数据，不等于额外实际支付的账单。任务模型调用在当前 asz 价格配置中未定价，不能记作零成本。
-B 的最终结果待完成后补录。
+B：run complete；4 个目标中 achieved 2、partly 2，完成分与最终分均为 79，效率 67。CLI 报告成本 2.77 USD。三份报告共报告 7.22 USD；不是实际账单。
 
 ## 截图与保留
 
